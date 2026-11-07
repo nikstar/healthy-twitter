@@ -47,7 +47,18 @@
       time = document.createElement('strong'); time.setAttribute('role', 'timer'); time.setAttribute('aria-live', 'off');
       card.append(label, time); paint();
     }
-    const sidebar = document.querySelector('[data-testid="sidebarColumn"]');
+    const candidate = document.querySelector('[data-testid="sidebarColumn"]');
+    const sidebar = candidate && getComputedStyle(candidate).display !== 'none' ? candidate : null;
+    // X's search header is fixed to the viewport even though its sidebar is in
+    // document flow. Keep the sticky timer below it instead of covering search.
+    let top = 12;
+    for (let node = sidebar?.querySelector('form[role="search"]'); node && node !== sidebar; node = node.parentElement) {
+      if (getComputedStyle(node).position === 'fixed') {
+        top = Math.max(top, node.getBoundingClientRect().bottom + 12);
+        break;
+      }
+    }
+    card.style.setProperty('--ht-time-top', `${top}px`);
     const host = sidebar || document.body;
     card.classList.toggle('ht-time-floating', !sidebar);
     if (card.parentElement !== host) host.prepend(card);
@@ -71,6 +82,7 @@
     if (event.isTrusted && event.target.closest?.('[role="tab"]')) pendingHome = false;
   }, true);
   window.addEventListener('popstate', schedule);
+  window.addEventListener('resize', schedule);
   document.addEventListener('visibilitychange', () => { usage.active = false; poll(true); schedule(); });
   window.addEventListener('focus', () => poll(true));
   window.addEventListener('blur', () => { paint(); usage.active = false; });

@@ -231,7 +231,7 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 | Time accounting | `test/activity.test.js` | Active/background tabs, focus loss, multiple windows, local midnight, reload and suspend |
 | Local browser fixtures | `test/browser/playback.html`, `test/browser/feed.html` | Trusted input, actual media events, visible toasts, tab switching, simulated errors |
 
-Baseline automated suite: **59 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
+Baseline automated suite: **60 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
 
 On 2026-11-07, real X pages were used to inspect and visually verify player controls, downloader paths, autoplay/loop prevention, muted playback, and post-shortcut placement/scope. Feed mutation/Undo sequences were exercised with synthetic native bindings in unit tests and a local Chrome fixture; real accounts were not arbitrarily blocked or given recommendation feedback for testing. Distinguish fixture validation, temporary page previews, and validation of the installed/reloaded extension in future reports.
 

@@ -69,3 +69,16 @@ test('settings normalize only boolean known keys and ignore malformed bridge eve
   const value = f.window[Symbol.for('healthy-twitter.settings')].value;
   assert.equal(value.startMuted, false); assert.equal(value.greyPaused, true); assert.equal(value.random, undefined);
 });
+
+
+test('timer clears X’s fixed search header and falls back when the sidebar is hidden', async t => {
+  const f = await fixture(t, { markup: tabs + '<div data-testid="sidebarColumn"><div class="fixed-search" style="position:fixed;top:0"><form role="search"><input></form></div></div>' });
+  f.document.querySelector('.fixed-search').getBoundingClientRect = () => ({ bottom: 53 });
+  f.update({}); await f.settle();
+  const card = f.document.querySelector('.ht-time-card');
+  assert.equal(card.style.getPropertyValue('--ht-time-top'), '65px');
+  assert.equal(card.querySelector('.ht-time-note'), null, 'no redundant subtitle');
+  f.document.querySelector('[data-testid="sidebarColumn"]').style.display = 'none';
+  f.window.dispatchEvent(new f.window.Event('resize')); await f.settle();
+  assert.equal(card.parentElement, f.document.body);
+});

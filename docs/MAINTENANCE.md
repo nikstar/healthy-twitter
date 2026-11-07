@@ -1,6 +1,6 @@
 # Maintaining Healthy Twitter against X updates
 
-Last inspected: **2026-11-07**, extension **1.5.1**. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
+Last inspected: **2026-11-07**, extension **1.5.1**. Following selection and the counting timer were observed in the installed 1.5.0 extension; 1.5.1 removes its subtitle and fixes clearance below X’s fixed search header. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
 
 X's DOM, React tree, and internal action functions are not a supported public extension API. Keep the integration small, verify the current website directly, and update sanitized fixtures to describe the observed structure. Do not solve a broken selector by broadening the target until an unrelated post can match.
 
@@ -278,7 +278,7 @@ Playback keeps its prototype wrappers installed and branches on current preferen
 
 `preferences.js` checks the first Home tablist and clicks its second tab once per `/home` entry. Selected-state attributes and a one-second route check handle delayed rendering/SPA navigation. Trusted user tab choices cancel pending default selection. If X reorders tabs or changes routing, repair this together with `feed.js:forYou`; a mismatched pair could put feedback shortcuts on the wrong timeline.
 
-Timer DOM: `.ht-time-card`, owned by `data-ht-timer-owned`, is inserted at the start of `[data-testid="sidebarColumn"]`; without a sidebar it floats near the lower right. The timer’s `role="timer"` has `aria-live="off"`. If X changes sidebar layout or visibility, update mounting and verify wide/narrow layouts plus the presence of X’s own search/messages controls.
+Timer DOM: `.ht-time-card`, owned by `data-ht-timer-owned`, is inserted at the start of `[data-testid="sidebarColumn"]`; without a visible sidebar it floats near the lower right. X currently has a fixed search-header ancestor above `form[role="search"]`; measure its bottom and set `--ht-time-top` so the sticky timer clears it by 12 pixels. Do not cover the search input. The timer’s `role="timer"` has `aria-live="off"`. If X changes sidebar layout or visibility, update mounting and verify wide/narrow layouts plus the presence of X’s own search/messages controls.
 
 `activity.js` owns one serialized ledger in the service worker. Browser tab activation/removal/navigation and window focus events settle the previous interval and select the current eligible X tab. Five-second content heartbeats verify the selected tab and focused, non-minimized window through Chrome, checkpoint storage, and return the total. A second tab cannot add the same interval again. These APIs use existing X host access; there is no broad `tabs` or browsing-history permission.
 
