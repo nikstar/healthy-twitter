@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Healthy Twitter",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "A calmer Twitter: Following by default, daily active time, deliberate playback, feed shortcuts, and video downloads.",
   "minimum_chrome_version": "111",
   "permissions": [
@@ -37,6 +37,7 @@
       "js": [
         "settings.js",
         "settings-bridge.js",
+        "audio.js",
         "playback.js"
       ],
       "css": [

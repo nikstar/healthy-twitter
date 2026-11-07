@@ -29,7 +29,15 @@ Controls appear only when X provides the matching native action and inverse oper
 - Paused or buffering frames and preview thumbnails are greyscale and dimmed. Actual playback restores their normal color; player controls retain their contrast.
 - Manual pause, keyboard Play, and scrubbing remain available. Mute, download, and other controls do not grant permission for autoplay. Newly loaded timeline players are covered automatically.
 
-These protections are on by default throughout X/Twitter. Audio-only elements are unaffected. Playback runs at document start so X cannot start a video before the guard is installed.
+These protections are on by default throughout X/Twitter. The separate background-audio guard also covers audio-only elements. Playback runs at document start so X cannot start a video before the guard is installed.
+
+## Background audio and headphones
+
+**Prevent background audio** is on by default. Media is muted before a source is assigned, preload is held at `none`, and early `load()` calls wait for playback. This avoids the unmuted initialization window that existed when we only muted at Play. Background audio-only starts are blocked. Use the native Unmute/volume control to enable sound for that video; pausing, finishing, or replacing its source revokes that permission. With **Start playback muted** off, an explicit Play may start with sound.
+
+Web Audio contexts start with Chrome’s no-output-device sink. They can render silently without opening a speaker/headphone output; a graph attached to an explicitly unmuted playing media element can use its requested output. Turn this setting off for **Spaces or calls** if their audio is suppressed. This changes page behavior, not macOS Bluetooth settings, and cannot guarantee how every Chrome/macOS/AirPods version handles automatic switching.
+
+After updating, reload the extension and refresh existing X tabs. Already-created audio renderers in an old page cannot be retroactively prevented. See the [maintenance guide](docs/MAINTENANCE.md#11-background-audio-and-headphone-focus-160) for diagnostics and the phone-to-Mac acceptance check.
 
 ## Downloads
 

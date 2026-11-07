@@ -2,7 +2,7 @@
 (() => {
   const defaults = Object.freeze({
     defaultFollowing: true, showTimer: true,
-    preventAutoplay: true, preventLoop: true, startMuted: true, greyPaused: true,
+    preventBackgroundAudio: true, preventAutoplay: true, preventLoop: true, startMuted: true, greyPaused: true,
     showNotInterested: true, showLessAccount: true, showBlock: true,
     playerDownload: true, menuDownload: true,
   });

@@ -153,6 +153,7 @@ test('manifest limits automatic integration to X/Twitter and packaged scripts', 
   const guard = manifest.content_scripts.find(script => script.js.includes('playback.js'));
   assert.equal(guard.run_at, 'document_start');
   assert.equal(guard.world, 'MAIN');
+  assert.ok(guard.js.indexOf('audio.js') >= 0 && guard.js.indexOf('audio.js') < guard.js.indexOf('playback.js'), 'early audio protection must run before playback');
   const feed = manifest.content_scripts.find(script => script.js.includes('feed.js'));
   assert.equal(feed.world, 'MAIN');
   assert.equal(feed.run_at, 'document_idle');

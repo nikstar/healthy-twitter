@@ -1,6 +1,6 @@
 # Maintaining Healthy Twitter against X updates
 
-Last inspected: **2026-11-07**, extension **1.5.1**. Following selection and the counting timer were observed in the installed 1.5.0 extension; 1.5.1 removes its subtitle and fixes clearance below X’s fixed search header. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
+Last inspected: **2026-11-07**, extension **1.6.0**. Following selection and the counting timer were observed in the installed 1.5.0 extension; 1.5.1 removes its subtitle and fixes clearance below X’s fixed search header. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
 
 X's DOM, React tree, and internal action functions are not a supported public extension API. Keep the integration small, verify the current website directly, and update sanitized fixtures to describe the observed structure. Do not solve a broken selector by broadening the target until an unrelated post can match.
 
@@ -89,7 +89,7 @@ The native guard's current timing/state details are in `playback.js`:
 | Authorization end | Pause, end, failure, or replacement of an existing media source |
 | Inactive styling | Until actual `playing`; restored on pause, waiting, error, and end |
 
-Native `play`, `pause`, `currentTime`, and optional `fastSeek` are saved before wrapping. Restrict interception to `HTMLVideoElement`; preserve audio-only behavior. Do not pause a playing video during the capture phase of a normal Pause click: X's toggle will see the altered state and may play it instead.
+Native `play`, `pause`, `currentTime`, and optional `fastSeek` are saved before wrapping. The playback/loop guard is video-only. `audio.js` runs first and separately protects all media audio output; preserve the wrapper ordering and the explicit-Play handoff. Do not pause a playing video during the capture phase of a normal Pause click: X's toggle will see the altered state and may play it instead.
 
 ### Media collection
 
@@ -296,3 +296,28 @@ Regression checks belong in `test/activity.test.js` (ledger/focus/ownership), `t
 The green bird’s source is `extension/icons/twitter.svg`, adapted from Bootstrap Icons with its MIT notice alongside it. `npm run icons` uses the development-only `@resvg/resvg-js` package to regenerate PNGs; no rasterizer or other runtime library ships inside the extension. Keep the attribution when changing the artwork.
 
 Official API references: [Chrome storage](https://developer.chrome.com/docs/extensions/reference/api/storage), [tabs and host permissions](https://developer.chrome.com/docs/extensions/reference/api/tabs), and [window focus](https://developer.chrome.com/docs/extensions/reference/api/windows).
+
+
+## 11. Background audio and headphone focus (1.6.0)
+
+A browser being silent is not proof that it never initialized an output device. X inspection found multiple videos at `readyState = 4`, paused but unmuted, while the old guard only muted at `play()`. No live AudioContext instances were found at that inspection point; do not report Web Audio as the confirmed cause. Chromium’s renderer has separate real/null audio sinks, and its media-focus bookkeeping considers whether media was previously unmuted. Early muting and deferring initialization address that gap. See [Chromium’s audio renderer](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/media/renderers/audio_renderer_impl.cc).
+
+Required manifest order in the document-start MAIN-world entry: `settings.js`, `settings-bridge.js`, `audio.js`, `playback.js`. Loading the audio guard after X caches native constructors/methods or after a media pipeline exists misses the initialization window. Refresh all existing X tabs after reloading the extension.
+
+`audio.js` protects media factories (`Document.createElement`, `createElementNS`, and `Audio`), media source/mute/defaultMute/preload setters, relevant attributes, `load()`, and audio-only playback. A mutation observer covers parser/cloned elements. Set native mute/defaultMute before handing a created node to X. `preload="none"` is a hint, so early `load()` calls are also deferred; the browser fixture demonstrated that calling native `load()` immediately can still fetch metadata. Flush the deferred load only when playback reaches the permitted native-play path. Preserve pending explicit Play through initial `emptied` events.
+
+The playback guard calls `audio.beginPlayback(video, explicitIntent, startMuted)`. That allows a deliberately audible start when the Start muted setting is off, without letting X’s automatic retries authorize sound. Capture trusted clicks/pointer/keyboard actions on the volume slot. Current structural binding: the volume slider’s first ancestor with native buttons has exactly one button and one slider. The progress slider’s corresponding ancestor does not match. M inside the player is also a sound action. Check these bindings if X changes controls; never broaden to every page click. Native controls can bypass property setters, so guarded `play` and `volumechange` event handling is also required.
+
+Web Audio uses a constructor proxy with Chrome’s no-output sink. It keeps real AudioContext objects and native graph methods, rather than pretending a context is suspended. `setSinkId` calls are serialized and re-check authorization before touching an output. Only a graph associated through `createMediaElementSource` with authorized playing media may use a hardware sink while protection is on. Native `close()` still releases the context; weak references avoid retaining retired elements/contexts. Offline contexts and microphone APIs are untouched. Chrome documents [no-output rendering and sink selection](https://developer.chrome.com/blog/audiocontext-setsinkid).
+
+`preventBackgroundAudio` is independent of the existing playback switches. It can suppress notifications, Spaces, or call audio; the popup explicitly tells users to turn it off for those flows. Disabling it restores recorded requests and deferred loads. No new permissions are required, and this does not change system-wide sound, Bluetooth, or AirPods preferences.
+
+### Validation
+
+- `node --test test/audio.test.js`: early factory/source muting, background load/play blocking, explicit volume/native controls, per-player permission, pause/source revocation, no-output context construction, sink routing, disabling protection, and unsupported-browser failure.
+- Serve `test/browser/audio.html` as `index.html` beside `settings.js`, `settings-bridge.js`, `audio.js`, `playback.js`, `playback.css`, and a local MP4 named `quiet.mp4` with an audio track. A synthetic silent AAC track permits checking audio plumbing without audible test tones. Keep that MP4 outside Git.
+- Before Play: muted before source assignment, preload `none`, paused, no background audio start, Web Audio sink type `none`. In the tested Chrome fixture the video remained at readyState zero. After Play: time advances, video stays muted, background unmute remains blocked, and resumed Web Audio still uses no output. Then test native Unmute/Mute/Pause/Replay on an appropriate user-controlled media sample.
+- On installed X, check cold Home, scrolling, newly inserted players, muted Play, explicit unmute, pause/replay, and downloads. MediaSource-based X loading may differ from a progressive-MP4 fixture; ensure Play does not depend on metadata that the new guard defers.
+- For the actual reported symptom, play audio on the phone through AirPods, open a fresh protected X tab without touching a player, then deliberately Play muted. The AirPods should stay with the phone. Explicit Unmute may legitimately switch them to the Mac. Repeat after scrolling/new media. This physical check cannot be inferred from browser `muted`, readyState, or sink diagnostics alone.
+
+If switching persists, capture whether it occurs at navigation, metadata loading, muted Play, or explicit sound. Investigate the actual active page/frame and native audio pipeline before adding broader monkey patches. The extension does not control every renderer process, foreign frame, microphone path, browser extension, or OS-level routing decision, so avoid promising a universal zero-session guarantee.

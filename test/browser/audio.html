@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Healthy Twitter audio guard</title>
+<script src="settings.js"></script><script src="settings-bridge.js"></script><script src="audio.js"></script><script src="playback.js"></script>
+<link rel="stylesheet" href="playback.css">
+<style>body{font:16px/1.5 -apple-system,sans-serif;background:#f5faf6;color:#193b2c;max-width:850px;margin:40px auto}h1{font-size:26px}video{width:480px;border-radius:12px}.controls{display:flex;gap:12px;margin:12px 0}button{font:inherit;padding:10px 18px;border:1px solid #248552;border-radius:8px;background:white;color:#193b2c;cursor:pointer}.volume{display:flex;align-items:center;gap:10px}[role=slider]{height:20px;width:80px;background:#bddec9;border-radius:8px}pre{background:#fff;padding:20px;border:1px solid #d5e5d9;border-radius:12px}</style>
+<h1>Audio stays off until requested</h1><p>Local fixture. The MP4 contains a silent audio track.</p>
+<div data-testid="videoComponent" id="player"><div class="controls"><button class="play">Play muted</button><div class="volume"><button class="mute">Unmute</button><div role="slider" aria-label="Volume" tabindex="0"></div></div></div></div>
+<button id="try-unmute">Simulate a background unmute</button><pre id="status"></pre>
+<script>
+const player=document.querySelector('#player'), video=document.createElement('video');
+const mutedBeforeSource=video.muted;
+video.preload='auto';video.muted=false;video.src='quiet.mp4';player.prepend(video);video.load();
+const context=new AudioContext();
+const oscillator=context.createOscillator();const gain=context.createGain();gain.gain.value=0;oscillator.connect(gain).connect(context.destination);oscillator.start();
+let audioBlocked=false;new Audio('quiet.mp4').play().catch(()=>{audioBlocked=true;render()});
+function render(){document.querySelector('#status').textContent=JSON.stringify({mutedBeforeSource,muted:video.muted,paused:video.paused,preload:video.preload,readyState:video.readyState,time:Number(video.currentTime.toFixed(2)),webAudioSink:typeof context.sinkId==='string'?context.sinkId:context.sinkId.type,webAudioState:context.state,backgroundAudioBlocked:audioBlocked},null,2);document.querySelector('.play').textContent=video.paused?'Play muted':'Pause';document.querySelector('.mute').textContent=video.muted?'Unmute':'Mute'}
+document.querySelector('.play').onclick=()=>{if(video.paused){video.play().catch(render);context.resume().then(render)}else video.pause();render()};
+document.querySelector('.mute').onclick=()=>{video.muted=!video.muted;render()};
+document.querySelector('#try-unmute').onclick=()=>{video.muted=false;context.setSinkId('').then(render);render()};
+for(const type of ['playing','pause','volumechange','loadedmetadata','timeupdate','ended'])video.addEventListener(type,render);
+context.addEventListener('statechange',render);render();
+</script></html>

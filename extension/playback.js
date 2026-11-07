@@ -126,6 +126,7 @@
       }
       // Every new start, resume, or replay begins quietly. Repeated play()
       // calls during playback must preserve an intentional unmute.
+      window[Symbol.for('healthy-twitter.audio')]?.beginPlayback(this, state.intentUntil > now(), enabled('startMuted'));
       syncPlayer(this);
       if (enabled('startMuted') && (!state.allowed || this.paused || this.ended)) {
         this.muted = true;

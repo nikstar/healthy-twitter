@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.5.1**, documented **2026-11-07**.
+Baseline: version **1.6.0**, documented **2026-11-07**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
@@ -22,7 +22,7 @@ Videos, including animations X labels as GIFs, start paused. Loading a post, scr
 
 A deliberate Play/Replay action or click on the playback surface authorizes only that player. Keyboard playback is supported when directed at that player. The large Play overlay and compact control-bar Play button must both work; after completion, Watch again and Replay must work too.
 
-Mute, captions, settings, downloads, links, and actions on another post must not authorize playback. Synthetic page-generated clicks must not authorize it. Audio-only elements are outside the video guard and remain unchanged.
+Mute, captions, settings, downloads, links, and actions on another post must not authorize playback. Synthetic page-generated clicks must not authorize it. Audio-only elements are outside the video playback/loop guard; AUDIO-01 separately prevents their background audio starts.
 
 The guard starts before X's player code. It covers videos inserted later, lazy-created players, and elements reused for a different media source. A pending explicit Play action must survive initial source/metadata loading. A new source must not inherit an old playback session.
 
@@ -45,6 +45,18 @@ Setting `video.muted = true` once is insufficient: X may reapply its previous so
 Paused video frames, unloaded preview thumbnails, buffering media, and completed clips appear greyscale and dimmed. Actual playback restores normal color. Player buttons and other controls keep their normal contrast.
 
 The baseline filter is `grayscale(1) brightness(.65)`. This is applied to media and poster images/backgrounds, not the entire player container. Playback color is restored on actual `playing`, not merely a pending `play()` request.
+
+### AUDIO-01 — Prevent background audio/device activation
+
+Enable `preventBackgroundAudio` by default. Install its main-world guard before the video playback guard, at document start. A new media element must be muted before X assigns a source or calls `load()`. Preserve the page’s requested values, but hold preload at `none` and defer background `load()` calls until playback is permitted. Cover DOM-created, parser-created, cloned, detached, and `new Audio(...)` elements, source properties/attributes, and source replacement. This is an output-avoidance measure, not a claim that the browser can never fetch metadata.
+
+Reject background audio-only `play()` attempts. Normal Play on a video still obeys PLY-01 and starts muted by default. A trusted action on that player’s native volume/unmute control or its M keyboard shortcut grants sound permission only for that element. Synthetic clicks, unrelated clicks, downloads, and progress seeking must not grant sound permission. Native browser media controls need equivalent handling because their actions can bypass JS property setters.
+
+Preserve intentional sound during a playing session. Revoke it and mute on pause, end, or source replacement. A pending explicit initial Play must survive the source’s initial `emptied`/load lifecycle. When Start muted is disabled, an explicit Play may honor X’s requested audible state; automatic retries must not grant sound.
+
+Construct Web Audio contexts with `sinkId: { type: 'none' }` from the start, preserving caller options and supplying a 48 kHz sample rate only when omitted. Do not construct a hardware-output context and suspend it afterward. Background `setSinkId()` requests must retain the no-output sink. An audio graph connected to an explicitly authorized, unmuted, playing media element may use its requested output; muting/pausing returns it to no output. Do not change OfflineAudioContext or request microphone/device permissions. If the browser lacks no-output-sink support, fail before allocating a realtime context while protection is enabled.
+
+Turning the setting off restores recorded media/output requests, including detached elements, and releases deferred loads. Keep this switch available for Spaces, calls, or other site audio flows not tied to a recognized media sound control. No macOS/Bluetooth configuration is changed. Guards cover the extension’s injected X page world; browser internals, other extensions, foreign frames, and OS routing are not fully controllable from this extension. Actual AirPods switching requires a device-level acceptance check and must not be reported as fixed solely from JavaScript state or fixture tests.
 
 ## 3. Post shortcuts
 
@@ -174,7 +186,7 @@ Clicking the icon opens a settings page in the popup, with today’s saved time 
 | Group | Preference keys | Behavior |
 | --- | --- | --- |
 | Your time | `defaultFollowing`, `showTimer` | Home default; visible daily counter and collection |
-| Playback | `preventAutoplay`, `preventLoop`, `startMuted`, `greyPaused` | Deliberate start; no loops; muted starts; inactive styling |
+| Playback | `preventBackgroundAudio`, `preventAutoplay`, `preventLoop`, `startMuted`, `greyPaused` | Early audio protection; deliberate start; no loops; muted starts; inactive styling |
 | Post shortcuts | `showNotInterested`, `showLessAccount`, `showBlock` | Each author-row action independently |
 | Downloads | `playerDownload`, `menuDownload` | Player button and native right-click item independently |
 
@@ -205,6 +217,7 @@ The download worker validates the extension sender. The settings popup cannot su
 
 | Component | Role |
 | --- | --- |
+| `audio.js` | Main world at document start, before playback; early mute/preload/load guard and no-output Web Audio |
 | `playback.js`, `playback.css` | Main world at document start; native media guard, local X player synchronization, inactive styling |
 | `feed.js`, `feed.css` | Main world at document idle; author-row controls, native feed actions, Undo, local visibility |
 | `content.js`, `content.css` | Isolated world at document idle; download buttons, native context menus, notifications |
@@ -223,6 +236,7 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 
 | Area | Automated coverage | Live acceptance checks |
 | --- | --- | --- |
+| Background audio | `test/audio.test.js`, `test/browser/audio.html` | Cold-load mute/preload; no native load before Play; silent Web Audio; native sound controls; AirPods phone-to-Mac check |
 | Playback | `test/playback.test.js` | Paused load/scroll; muted start; unmute; pause/resume; end/replay; GIF; seeking; actual grey/color state |
 | Feed | `test/feed.test.js` | Three For You buttons; Block elsewhere; matching author; layout and tooltips; approved account/feedback action and Undo |
 | Download UI | `test/content.test.js` | Player/CC placement; GIF badge; right-click target; menu dismissal; keyboard access |
@@ -231,11 +245,13 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 | Time accounting | `test/activity.test.js` | Active/background tabs, focus loss, multiple windows, local midnight, reload and suspend |
 | Local browser fixtures | `test/browser/playback.html`, `test/browser/feed.html` | Trusted input, actual media events, visible toasts, tab switching, simulated errors |
 
-Baseline automated suite: **60 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
+Baseline automated suite: **72 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
 
 On 2026-11-07, real X pages were used to inspect and visually verify player controls, downloader paths, autoplay/loop prevention, muted playback, and post-shortcut placement/scope. Feed mutation/Undo sequences were exercised with synthetic native bindings in unit tests and a local Chrome fixture; real accounts were not arbitrarily blocked or given recommendation feedback for testing. Distinguish fixture validation, temporary page previews, and validation of the installed/reloaded extension in future reports.
 
 Version 1.5.0’s settings popup, persistence, timer layout, and Following/manual-tab behavior were also checked in a local Chrome preview. Installed-extension checks are separate from those synthetic previews.
+
+In 1.6.0 browser diagnostics on X found paused, unmuted, initialized video elements and no live realtime AudioContexts at the inspected moment. This suggests an early-media-initialization gap but does not prove the cause of Bluetooth handoff. A real Chrome fixture verified `readyState = 0` before Play, muted manual playback, rejected background unmute/audio requests, and `sinkId.type = "none"`. AirPods behavior remains a separate hardware check.
 
 ## 9. Non-goals and constraints
 
