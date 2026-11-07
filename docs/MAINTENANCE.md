@@ -1,6 +1,6 @@
 # Maintaining Healthy Twitter against X updates
 
-Last inspected: **2026-11-07**, extension **1.5.0**. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
+Last inspected: **2026-11-07**, extension **1.5.1**. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
 
 X's DOM, React tree, and internal action functions are not a supported public extension API. Keep the integration small, verify the current website directly, and update sanitized fixtures to describe the observed structure. Do not solve a broken selector by broadening the target until an unrelated post can match.
 

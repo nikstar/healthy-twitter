@@ -45,8 +45,7 @@
       card.setAttribute('aria-label', 'Time spent on Twitter today');
       const label = document.createElement('span'); label.textContent = 'TODAY ON TWITTER'; label.className = 'ht-time-label';
       time = document.createElement('strong'); time.setAttribute('role', 'timer'); time.setAttribute('aria-live', 'off');
-      const note = document.createElement('span'); note.textContent = 'Active tab time'; note.className = 'ht-time-note';
-      card.append(label, time, note); paint();
+      card.append(label, time); paint();
     }
     const sidebar = document.querySelector('[data-testid="sidebarColumn"]');
     const host = sidebar || document.body;

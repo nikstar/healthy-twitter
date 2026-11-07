@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.5.0**, documented **2026-11-07**.
+Baseline: version **1.5.1**, documented **2026-11-07**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
