@@ -321,3 +321,7 @@ Web Audio uses a constructor proxy with Chrome’s no-output sink. It keeps real
 - For the actual reported symptom, play audio on the phone through AirPods, open a fresh protected X tab without touching a player, then deliberately Play muted. The AirPods should stay with the phone. Explicit Unmute may legitimately switch them to the Mac. Repeat after scrolling/new media. This physical check cannot be inferred from browser `muted`, readyState, or sink diagnostics alone.
 
 If switching persists, capture whether it occurs at navigation, metadata loading, muted Play, or explicit sound. Investigate the actual active page/frame and native audio pipeline before adding broader monkey patches. The extension does not control every renderer process, foreign frame, microphone path, browser extension, or OS-level routing decision, so avoid promising a universal zero-session guarantee.
+
+### Device acceptance result
+
+On 2026-11-07 the user reloaded 1.6.0 and answered “Reloaded — AirPods stayed on phone” to the requested check with phone audio playing while opening X and pressing Play muted. The reported handoff problem was resolved on that setup. Keep the cold-load and muted-Play checks when refreshing this integration; audible Unmute, calls, other browser/OS versions, and every feed experiment are not covered by that single result.

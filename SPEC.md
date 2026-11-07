@@ -251,7 +251,7 @@ On 2026-11-07, real X pages were used to inspect and visually verify player cont
 
 Version 1.5.0’s settings popup, persistence, timer layout, and Following/manual-tab behavior were also checked in a local Chrome preview. Installed-extension checks are separate from those synthetic previews.
 
-In 1.6.0 browser diagnostics on X found paused, unmuted, initialized video elements and no live realtime AudioContexts at the inspected moment. This suggests an early-media-initialization gap but does not prove the cause of Bluetooth handoff. A real Chrome fixture verified `readyState = 0` before Play, muted manual playback, rejected background unmute/audio requests, and `sinkId.type = "none"`. AirPods behavior remains a separate hardware check.
+In 1.6.0 browser diagnostics on X found paused, unmuted, initialized video elements and no live realtime AudioContexts at the inspected moment. This suggests an early-media-initialization gap but does not prove the cause of Bluetooth handoff. A real Chrome fixture verified `readyState = 0` before Play, muted manual playback, rejected background unmute/audio requests, and `sinkId.type = "none"`. On 2026-11-07, after reloading 1.6.0, the user confirmed that AirPods stayed with the phone during the requested open-X/muted-Play check. This is a successful device-level check on that setup, not a guarantee for every OS/browser/device combination.
 
 ## 9. Non-goals and constraints
 
