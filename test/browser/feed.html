@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Healthy Twitter · Feed verification</title>
+<link rel="stylesheet" href="/feed.css">
+<style>
+ body{font:15px system-ui;margin:0;background:#eef4f1;color:#173b32}main{max-width:650px;margin:36px auto;background:white;border:1px solid #d7e0dc;border-radius:16px;overflow:hidden}header,.test-status{padding:20px}h1{font-size:22px;margin:0 0 8px}header p{margin:0;color:#536471}[role=tablist]{display:flex;border-block:1px solid #e5ebe8}[role=tab]{flex:1;padding:16px;border:0;background:white;font:600 15px system-ui;cursor:pointer}[aria-selected=true]{box-shadow:inset 0 -3px #187c68}article{padding:20px;border-bottom:1px solid #e5ebe8}.author-row{display:flex;justify-content:space-between;align-items:center;gap:8px}[data-testid=User-Name]{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}[data-testid=User-Name] a{color:#536471;text-decoration:none;margin-right:7px}.native-actions{display:flex}[data-testid=caret]{border:0;background:transparent;font-size:20px;color:#536471}article p{color:#273e35}.avatar{display:inline-flex;width:28px;height:28px;border-radius:50%;align-items:center;justify-content:center;background:#deede6;margin-right:8px}output{display:block;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;margin-top:12px}
+</style>
+<main><header><h1>Healthy Twitter · Feed verification</h1><p>Local test accounts. Actions stay inside this fixture.</p></header>
+<nav role="tablist"><button role="tab" aria-selected="true">For you</button><button role="tab" aria-selected="false">Following</button></nav>
+<div id="posts"></div><div class="test-status"><label><input id="fail" type="checkbox"> Simulate a failed action</label><output id="events">No actions yet.</output></div></main>
+<script>
+ const events=[], feedbackActions={}, accounts=new Map();
+ const log=(action,value)=>{events.push({action,value});document.querySelector('#events').textContent=JSON.stringify(events,null,2)};
+ const finish=()=>new Promise((resolve,reject)=>setTimeout(()=>document.querySelector('#fail').checked?reject(Error('Offline')):resolve(),350));
+ for(const [id,handle,name,userId,text] of [
+   ['11','ari_luna','Ari Luna','101','A quiet Sunday walk, a good book, and no rush.'],
+   ['21','chen_m','Chen M.','202','A small reminder to step away from the screen.'],
+   ['12','ari_luna','Ari Luna','101','Another post from the same account, to verify blocking and Undo.']
+ ]) {
+   const cell=document.createElement('div');cell.dataset.testid='cellInnerDiv';
+   cell.innerHTML=`<article data-testid="tweet" id="post-${id}"><div class="author-row"><div data-testid="User-Name"><a href="/${handle}"><span class="avatar">${name[0]}</span><strong>${name}</strong></a><a href="/${handle}" tabindex="-1">@${handle}</a><a href="/${handle}/status/${id}"><time>1h</time></a></div><div class="native-actions"><button data-testid="caret" aria-label="More">···</button></div></div><p>${text}</p></article>`;
+   document.querySelector('#posts').append(cell);
+   const post=cell.firstChild, root=`root-${id}`, child=`account-${id}`;
+   const rootAction={feedbackKey:root,feedbackType:'DontLike',hasUndoAction:true,childKeys:[child]};
+   feedbackActions[root]=rootAction;feedbackActions[child]={feedbackType:'SeeFewer',hasUndoAction:true,prompt:`Show fewer posts from ${handle}`};
+   const account={tweet:{id_str:id,user:{id_str:userId,screen_name:handle,blocking:false}},
+     block:async id=>{log('block',id);await finish();for(const a of accounts.values())if(a.tweet.user.id_str===id)a.tweet.user.blocking=true},
+     unblock:async id=>{log('unblock',id);await finish();for(const a of accounts.values())if(a.tweet.user.id_str===id)a.tweet.user.blocking=false}};
+   accounts.set(id,account);
+   post.querySelector('[data-testid=caret]').__reactFiber$fixture={stateNode:{props:account,context:{viewerUserId:'99'}}};
+   post.__reactFiber$fixture={memoizedProps:{entry:{entryId:`tweet-${id}`,content:{id},itemMetadata:{feedbackInfo:{feedbackKeys:[root]}}},feedbackActions:[rootAction],
+     applyFeedbackAction:async payload=>{log('feedback',payload.feedbackKeys[0]);await finish()},
+     undoFeedbackAction:async payload=>{log('undo-feedback',payload.feedbackKeys[0]);await finish()}},dependencies:{firstContext:{memoizedValue:{store:{getState:()=>({urt:{home:{responseObjects:{feedbackActions}}}})}}}}};
+ }
+ for(const tab of document.querySelectorAll('[role=tab]'))tab.addEventListener('click',()=>{for(const other of document.querySelectorAll('[role=tab]'))other.setAttribute('aria-selected',String(other===tab))});
+</script>
+<script src="/feed.js"></script>
+</html>

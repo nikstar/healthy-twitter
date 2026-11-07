@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Healthy Twitter</title>
+  <link rel="stylesheet" href="popup.css">
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <header>
+    <img class="logo" src="icons/48.png" width="38" height="38" alt="">
+    <div><h1>Healthy Twitter</h1><p>Watch on your terms.</p></div>
+    <button id="refresh" class="icon-button" title="Refresh videos" aria-label="Refresh videos">↻</button>
+  </header>
+  <main>
+    <section class="playback-summary" aria-label="Playback protections">
+      <strong>Playback, by choice</strong>
+      <p>Autoplay off · Loops off · Starts muted · Paused previews greyed out</p>
+      <p>Post feedback and Block shortcuts, with Undo.</p>
+    </section>
+    <p id="status" role="status" aria-live="polite">Looking for videos…</p>
+    <div id="videos"></div>
+  </main>
+  <footer><span class="privacy-dot"></span>Runs locally. No tracking or extra service.</footer>
+  <template id="video-template">
+    <article class="video-card">
+      <div class="preview"><img class="poster" alt="Video preview" referrerpolicy="no-referrer"><span class="duration"></span></div>
+      <div class="card-content">
+        <div class="meta"><span class="author"></span><span class="format">MP4</span></div>
+        <p class="caption"></p>
+        <div class="controls"><select aria-label="Video quality"></select><button class="download">↓ <span>Download</span></button></div>
+        <p class="download-status" role="status" aria-live="polite" hidden></p>
+      </div>
+    </article>
+  </template>
+</body>
+</html>

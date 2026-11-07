@@ -1,0 +1,13 @@
+{
+  "name": "healthy-twitter",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check extension/collector.js && node --check extension/popup.js && node --check extension/background.js && node --check extension/shared.js && node --check extension/content.js && node --check extension/playback.js && node --check extension/feed.js"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0"
+  }
+}

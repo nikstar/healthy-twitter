@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Healthy Twitter playback verification</title>
+<link rel="stylesheet" href="playback.css">
+<script src="playback.js"></script>
+<style>
+  body{font:15px system-ui;background:#eef4f1;color:#173b32;margin:40px}
+  h1{font-size:25px}main{display:flex;gap:24px;align-items:flex-start}
+  article{background:white;padding:20px;border-radius:15px;width:340px}
+  video{width:320px;height:250px;object-fit:contain;background:#162921}
+  button{padding:9px 14px;margin:8px 6px 0 0}output{display:block;margin-top:12px;font-size:12px;white-space:pre-line}
+  .spacer{height:110vh}
+</style>
+<h1>Healthy Twitter · Playback verification</h1>
+<p>Real videos, with page code that attempts autoplay and JavaScript looping.</p>
+<main>
+  <article><h2>Video</h2><div data-testid="videoComponent" id="regular">
+    <video src="video.mp4" autoplay loop playsinline preload="auto"></video>
+    <button class="play">Play video</button><button class="mute">Mute</button>
+    <div role="slider" tabindex="0" aria-label="Seek video">Seek</div>
+  </div><output id="regular-status"></output></article>
+  <article><h2>GIF (original MP4)</h2><div data-testid="videoComponent" id="gif">
+    <video src="gif.mp4" autoplay loop playsinline muted preload="auto"></video>
+    <button class="play">Play GIF</button><button class="mute">Mute</button>
+    <div role="slider" tabindex="0" aria-label="Seek GIF">Seek</div>
+  </div><output id="gif-status"></output></article>
+</main>
+<div class="spacer"></div><p>Scroll back up: the page will attempt autoplay again.</p>
+<script>
+  for(const player of document.querySelectorAll('[data-testid="videoComponent"]')) {
+    const video=player.querySelector('video');
+    const output=document.querySelector('#'+player.id+'-status');
+    let blocked=0,loops=0;
+    const attempt=()=>video.play().catch(()=>{blocked++;render()});
+    const render=()=>{player.querySelector('.mute').textContent=video.muted?'Unmute':'Mute';output.textContent=JSON.stringify({paused:video.paused,muted:video.muted,ended:video.ended,time:Number(video.currentTime.toFixed(2)),loop:video.loop,autoplay:video.autoplay,blocked,loops,filter:getComputedStyle(video).filter},null,2)};
+    player.querySelector('.play').addEventListener('click',()=>video.paused?attempt():video.pause());
+    player.querySelector('.mute').addEventListener('click',()=>{video.muted=!video.muted;attempt()});
+    player.querySelector('[role="slider"]').addEventListener('click',()=>{video.currentTime=0});
+    video.addEventListener('ended',()=>{loops++;video.currentTime=0;attempt()});
+    for(const type of ['loadedmetadata','playing','pause','volumechange','timeupdate','ended'])video.addEventListener(type,render);
+    window.addEventListener('scroll',()=>{if(scrollY<30)attempt()});
+    attempt();render();
+  }
+</script>
+</html>
