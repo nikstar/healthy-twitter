@@ -1,6 +1,6 @@
 /* Paused video frames and posters recede; controls retain their normal contrast. */
-video:not([data-ht-playing="true"]),
-[data-testid="videoComponent"]:not([data-ht-state="playing"]) img,
-[data-testid="videoComponent"]:not([data-ht-state="playing"]) [style*="background-image"] {
+html:not([data-ht-grey="false"]) video:not([data-ht-playing="true"]),
+html:not([data-ht-grey="false"]) [data-testid="videoComponent"]:not([data-ht-state="playing"]) img,
+html:not([data-ht-grey="false"]) [data-testid="videoComponent"]:not([data-ht-state="playing"]) [style*="background-image"] {
   filter: grayscale(1) brightness(.65) !important;
 }

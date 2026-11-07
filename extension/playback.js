@@ -5,6 +5,10 @@
   if (window[installed]) return;
   window[installed] = true;
 
+  const config = window[Symbol.for('healthy-twitter.settings')];
+  const enabled = key => config?.value[key] !== false;
+  const requestedFlags = new WeakMap();
+  const nativeLoops = new WeakMap();
   const PLAYER = '[data-testid="videoComponent"]';
   const mediaPrototype = HTMLMediaElement.prototype;
   const nativePlay = mediaPrototype.play;
@@ -24,8 +28,12 @@
   }
 
   function flagsOff(video) {
-    if (video.hasAttribute('autoplay')) video.removeAttribute('autoplay');
-    if (video.hasAttribute('loop')) video.removeAttribute('loop');
+    let flags = requestedFlags.get(video);
+    if (!flags) { flags = {}; requestedFlags.set(video, flags); }
+    for (const [name, setting] of [['autoplay', 'preventAutoplay'], ['loop', 'preventLoop']]) {
+      if (video.hasAttribute(name)) flags[name] = true;
+      if (enabled(setting) && video.hasAttribute(name)) video.removeAttribute(name);
+    }
   }
 
   function syncPlayer(video, action) {
@@ -39,14 +47,17 @@
       let fiber = key && player[key];
       for (let depth = 0; fiber && depth < 12; depth++, fiber = fiber.return) {
         const api = fiber.stateNode?.videoPlayer;
-        if (api?.video?.getVideoTag?.() === video && typeof api[action] === 'function') {
+        if (api?.video?.getVideoTag?.() === video && (!action || typeof api[action] === 'function')) {
           // The short-video loop setting also controls X's ended/replay UI.
           // Disable it for this mounted track; the native guard remains the
           // fallback for players without this integration.
           const track = api.video.getCurrentTrack?.();
-          if (track && !Object.isFrozen(track)) track.shouldLoop = false;
-          api.video.shouldLoop = false;
-          api[action]();
+          for (const object of [track, api.video]) {
+            if (!object || Object.isFrozen(object)) continue;
+            if (!nativeLoops.has(object)) nativeLoops.set(object, object.shouldLoop);
+            object.shouldLoop = enabled('preventLoop') ? false : nativeLoops.get(object);
+          }
+          if (action) api[action]();
           return;
         }
       }
@@ -87,6 +98,7 @@
   }
 
   function canSeek(video, value) {
+    if (!enabled('preventLoop')) return true;
     const state = stateFor(video);
     const manual = state.intentUntil > now() || state.seekUntil > now() || scrubbing === video;
     const current = timeProperty.get.call(video);
@@ -107,14 +119,15 @@
       if (!isVideo(this)) return nativePlay.apply(this, args);
       const state = stateFor(this);
       flagsOff(this);
-      if (!state.allowed && state.intentUntil <= now()) {
+      if (!state.allowed && state.intentUntil <= now() && (enabled('preventAutoplay') || (enabled('preventLoop') && state.finished))) {
         stop(this);
         syncPlayer(this, 'pause');
         return Promise.reject(new DOMException('Healthy Twitter: press Play to start this video.', 'NotAllowedError'));
       }
       // Every new start, resume, or replay begins quietly. Repeated play()
       // calls during playback must preserve an intentional unmute.
-      if (!state.allowed || this.paused || this.ended) {
+      syncPlayer(this);
+      if (enabled('startMuted') && (!state.allowed || this.paused || this.ended)) {
         this.muted = true;
         syncPlayer(this, 'mute');
       }
@@ -130,7 +143,7 @@
   Object.defineProperty(mediaPrototype, 'pause', {
     configurable: true, writable: true,
     value: function(...args) {
-      if (isVideo(this)) {
+      if (isVideo(this) && !(this.ended && !enabled('preventLoop') && stateFor(this).allowed)) {
         const state = stateFor(this);
         state.allowed = false;
         state.intentUntil = 0;
@@ -144,7 +157,12 @@
     if (!descriptor?.set || !descriptor.configurable) continue;
     Object.defineProperty(HTMLVideoElement.prototype, property, {
       ...descriptor,
-      set() { descriptor.set.call(this, false); },
+      set(value) {
+        let flags = requestedFlags.get(this);
+        if (!flags) { flags = {}; requestedFlags.set(this, flags); }
+        flags[property] = !!value;
+        descriptor.set.call(this, enabled(property === 'loop' ? 'preventLoop' : 'preventAutoplay') ? false : value);
+      },
     });
   }
   if (timeProperty?.set && timeProperty.configurable) {
@@ -218,15 +236,26 @@
     document.addEventListener(type, event => {
       if (!isVideo(event.target)) return;
       const video = event.target;
-      if (!stateFor(video).allowed) stop(video);
+      const state = stateFor(video);
+      if (!state.allowed && !enabled('preventAutoplay') && !(enabled('preventLoop') && state.finished)) {
+        if (enabled('startMuted')) { video.muted = true; syncPlayer(video, 'mute'); }
+        state.allowed = true;
+      }
+      if (!state.allowed) stop(video);
       else if (type === 'playing' && !video.paused) paint(video, true);
     }, true);
   }
   document.addEventListener('pause', event => {
-    if (isVideo(event.target) && event.target.paused) stop(event.target);
+    if (isVideo(event.target) && event.target.paused) {
+      if (event.target.ended && !enabled('preventLoop') && stateFor(event.target).allowed) paint(event.target, false);
+      else stop(event.target);
+    }
   }, true);
   document.addEventListener('ended', event => {
-    if (isVideo(event.target)) stop(event.target, true);
+    if (isVideo(event.target)) {
+      if (enabled('preventLoop')) stop(event.target, true);
+      else paint(event.target, false);
+    }
   }, true);
   document.addEventListener('waiting', event => {
     if (isVideo(event.target)) paint(event.target, false);
@@ -239,7 +268,7 @@
       if (!isVideo(event.target)) return;
       const video = event.target;
       flagsOff(video);
-      if (!stateFor(video).allowed) {
+      if (enabled('preventAutoplay') && !stateFor(video).allowed) {
         // Loading a source can be part of a pending, explicit Play action.
         // Pause any native autoplay without consuming that short-lived intent.
         if (!video.paused) nativePause.call(video);
@@ -251,7 +280,7 @@
   function observeVideo(video) {
     const state = stateFor(video);
     flagsOff(video);
-    if (!state.allowed && !video.paused) stop(video);
+    if (enabled('preventAutoplay') && !state.allowed && !video.paused) stop(video);
   }
   new MutationObserver(records => {
     for (const record of records) {
@@ -267,5 +296,19 @@
       }
     }
   }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['autoplay', 'loop', 'src'] });
+  function applySettings() {
+    document.documentElement?.setAttribute('data-ht-grey', String(enabled('greyPaused')));
+    document.querySelectorAll('video').forEach(video => {
+      const flags = requestedFlags.get(video) || {};
+      for (const [name, setting] of [['autoplay', 'preventAutoplay'], ['loop', 'preventLoop']]) {
+        if (!enabled(setting) && flags[name]) video[name] = true;
+      }
+      if (!enabled('preventLoop')) stateFor(video).finished = false;
+      flagsOff(video); syncPlayer(video);
+    });
+  }
+  config?.subscribe(applySettings);
+  document.addEventListener('DOMContentLoaded', applySettings, { once: true });
   document.querySelectorAll('video').forEach(observeVideo);
+  applySettings();
 })();

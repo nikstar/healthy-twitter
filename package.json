@@ -1,13 +1,15 @@
 {
   "name": "healthy-twitter",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "node --check extension/collector.js && node --check extension/popup.js && node --check extension/background.js && node --check extension/shared.js && node --check extension/content.js && node --check extension/playback.js && node --check extension/feed.js"
+    "check": "node scripts/check.js",
+    "icons": "node scripts/generate-icons.js"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "jsdom": "^31.0.0"
   }
 }

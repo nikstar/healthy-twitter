@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
+const settingsSource = await readFile(new URL('../extension/settings.js', import.meta.url), 'utf8');
+const bridgeSource = await readFile(new URL('../extension/settings-bridge.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../extension/content.js', import.meta.url), 'utf8');
 const playerHTML = (id, cc = true) => `<div data-testid="videoComponent" id="${id}">
   <video></video><div class="controls"><div role="slider" aria-label="Progress"></div>
@@ -39,6 +41,7 @@ function fixture(t, markup = playerHTML('a')) {
     return add.call(this, type, listener, options);
   };
   window.chrome = { runtime: { sendMessage: async message => { messages.push(message); return { id: 7, width: 720, height: 1280 }; } } };
+  window.eval(settingsSource); window.eval(bridgeSource);
   window.eval(source);
   const trusted = (target, type, extras = {}) => {
     const event = { target, isTrusted: true, preventDefault() {}, stopPropagation() {}, ...extras };
@@ -197,4 +200,18 @@ test('detects a GIF when metadata arrives after its player shell', async t => {
   video.dispatchEvent(new f.window.Event('loadedmetadata'));
   await f.settle();
   assert.equal(f.document.querySelector('.xvs-download-button').getAttribute('aria-label'), 'Download GIF');
+});
+
+test('player and menu download preferences update independently on open pages', async t => {
+  const f = fixture(t);
+  f.document.dispatchEvent(new f.window.CustomEvent('ht-settings', { detail: JSON.stringify({ playerDownload: false }) }));
+  await f.settle();
+  assert.equal(f.document.querySelector('.xvs-download-button'), null);
+  f.trusted(f.document, 'contextmenu', { target: f.document.querySelector('video') });
+  f.document.body.insertAdjacentHTML('beforeend', menuHTML); await f.settle();
+  assert.ok(f.document.querySelector('.xvs-menu-item'));
+  f.document.dispatchEvent(new f.window.CustomEvent('ht-settings', { detail: JSON.stringify({ menuDownload: false }) }));
+  await f.settle();
+  assert.equal(f.document.querySelector('.xvs-menu-item'), null);
+  assert.ok(f.document.querySelector('.xvs-download-button'));
 });

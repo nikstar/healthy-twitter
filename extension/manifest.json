@@ -1,35 +1,99 @@
 {
   "manifest_version": 3,
   "name": "Healthy Twitter",
-  "version": "1.4.0",
-  "description": "A calmer X: deliberate playback, feedback and Block shortcuts with Undo, and video/GIF downloads.",
+  "version": "1.5.0",
+  "description": "A calmer Twitter: Following by default, daily active time, deliberate playback, feed shortcuts, and video downloads.",
   "minimum_chrome_version": "111",
-  "permissions": ["activeTab", "scripting", "downloads"],
-  "host_permissions": ["https://*.x.com/*", "https://*.twitter.com/*"],
-  "content_scripts": [{
-    "matches": ["https://*.x.com/*", "https://*.twitter.com/*"],
-    "js": ["playback.js"],
-    "css": ["playback.css"],
-    "world": "MAIN",
-    "run_at": "document_start"
-  }, {
-    "matches": ["https://*.x.com/*", "https://*.twitter.com/*"],
-    "js": ["feed.js"],
-    "css": ["feed.css"],
-    "world": "MAIN",
-    "run_at": "document_idle"
-  }, {
-    "matches": ["https://*.x.com/*", "https://*.twitter.com/*"],
-    "js": ["content.js"],
-    "css": ["content.css"],
-    "run_at": "document_idle"
-  }],
-  "background": {"service_worker": "background.js", "type": "module"},
+  "permissions": [
+    "scripting",
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.x.com/*",
+    "https://*.twitter.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": [
+        "settings.js",
+        "settings-bridge.js",
+        "preferences.js"
+      ],
+      "css": [
+        "preferences.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": [
+        "settings.js",
+        "settings-bridge.js",
+        "playback.js"
+      ],
+      "css": [
+        "playback.css"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": [
+        "feed.js"
+      ],
+      "css": [
+        "feed.css"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_title": "Healthy Twitter",
     "default_popup": "popup.html",
-    "default_icon": {"16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png"}
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
   },
-  "icons": {"16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png"},
-  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
 }

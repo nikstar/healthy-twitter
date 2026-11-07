@@ -1,6 +1,6 @@
 # Maintaining Healthy Twitter against X updates
 
-Last inspected: **2026-11-07**, extension **1.4.0**. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
+Last inspected: **2026-11-07**, extension **1.5.0**. Read [SPEC.md](../SPEC.md) first for the behavior a repair must preserve.
 
 X's DOM, React tree, and internal action functions are not a supported public extension API. Keep the integration small, verify the current website directly, and update sanitized fixtures to describe the observed structure. Do not solve a broken selector by broadening the target until an unrelated post can match.
 
@@ -16,7 +16,7 @@ X's DOM, React tree, and internal action functions are not a supported public ex
 | No inline download button | `content.js`: `controlsFor`, `installButton` | Volume row, GIF badge, or control layout changed |
 | Wrong/missing right-click item | `content.js`: menu markers and context tracking | Changed menu test IDs, GIF menu shape, or menu reuse |
 | Download item works but menu stays open | `content.js`: `activate` | X's Escape handling moved; baseline requires keyup |
-| Popup finds no MP4 | `collector.js`: `playerProps`, `normalize` | Variants moved, source not mounted, or media is HLS-only |
+| Download finds no MP4 | `collector.js`: `playerProps`, `normalize` | Variants moved, source not mounted, or media is HLS-only |
 | Wrong video/author is downloaded | `collector.js`, `background.js` | Traversal crossed a post or a targeted token fell back |
 | No author-row buttons | `feed.js`: `identity`, `contextFor`, `install` | Article/header markers or native action props changed |
 | Feedback buttons on the wrong tab | `feed.js`: `forYou` | Home tab order or selected-state markup changed |
@@ -103,11 +103,11 @@ Current traversal: at most four DOM ancestors, then 32 fiber ancestors for each;
 | `videoId.id`, `videoId.index` | Post association and media index |
 | `contentId` | Duplicate-player identity |
 | `contentType === 'gif'` | GIF detection |
-| `poster`, `durationMs` | Popup metadata |
+| `poster`, `durationMs` | Media metadata; poster also helps GIF identification |
 
 Accept progressive HTTPS MP4s on `video.twimg.com`, excluding known `/pl/` and `/aud/` fragment paths. Resolution usually comes from `/WIDTHxHEIGHT/` in the URL. GIF URLs under `/tweet_video/` lack dimensions; use decoded dimensions only if the candidate URL is the exact current video source.
 
-When a player token is supplied, compare the attribute value directly and never fall back to another player. Untargeted popup scans may include standalone `<video>` elements and deduplicate by content ID or source.
+When a player token is supplied, compare the attribute value directly and never fall back to another player. The collector retains an untargeted mode for fixtures/inspection (the settings popup no longer uses it); that mode may include standalone `<video>` elements and deduplicate by content ID or source.
 
 ## 4. Feed actions and their inverse operations
 
@@ -246,7 +246,11 @@ These URLs may disappear or change; they are optional smoke-test examples, not C
 | Player download, including paused player | Correct media saved; no playback toggle |
 | Video/GIF right-click menus | Correct label and target; menu closes; native copy items remain |
 | Two posts/quoted media on one page | Each download/action affects only its intended target |
-| Popup refresh and quality selection | Correct variants and author; completion/interruption status |
+| Settings popup toggles | Persist after closing/reopening; apply in open X tabs; failed saves shown |
+| Enter Home, select For You, rerender, leave/return | Following default once; manual choice survives that visit |
+| Timer with multiple tabs/windows and another app | One shared total; selected X tab in focused Chrome only |
+| Timer across midnight and suspension | Local-day reset/split; no sleep accumulation |
+| Timer disabled, then enabled | Stops counting, preserves today’s total, resumes without backfill |
 | For You / Following / replies | Three shortcuts / Block only / Block only |
 | Long author, dark theme, narrow window | Controls remain visible, legible, and usable |
 | Not interested and Show less with Undo | Correct native feedback and full inverse sequence |
@@ -264,3 +268,31 @@ Existing automated fixtures cover many edge cases; this matrix is a live compati
 - Keep product requirements in `SPEC.md`, implementation contracts here, and first-time setup concise in `README.md`.
 - A documentation-only change does not require an extension reload or version bump.
 - If a change to X makes a feature unavailable, document the limitation precisely. Do not claim a live mutation succeeded based only on a mocked handler call or a visible button.
+
+
+## 10. Settings, Home navigation, and time accounting (1.5.0)
+
+Before debugging an apparent regression, check whether the relevant switch is enabled. `settings.js` defines the complete boolean schema and defaults. The popup stores only normalized `settings` in `chrome.storage.local`. `preferences.js` reads it in the isolated world at document start and broadcasts JSON through `ht-settings`; `settings-bridge.js` maintains a separate `Symbol.for('healthy-twitter.settings')` object in each world. The ready event handles script injection ordering. This bridge carries only UI behavior booleans, never storage access, account data, credentials, or commands. It is not a trusted boundary for account operations.
+
+Playback keeps its prototype wrappers installed and branches on current preferences. It records native autoplay/loop requests and local X loop values so disabling protection can restore them. `data-ht-grey="false"` on the root disables the inactive CSS filter. Feed and download scripts rescan when preferences change. Outstanding feed Undo operations remain valid even if their shortcut is switched off.
+
+`preferences.js` checks the first Home tablist and clicks its second tab once per `/home` entry. Selected-state attributes and a one-second route check handle delayed rendering/SPA navigation. Trusted user tab choices cancel pending default selection. If X reorders tabs or changes routing, repair this together with `feed.js:forYou`; a mismatched pair could put feedback shortcuts on the wrong timeline.
+
+Timer DOM: `.ht-time-card`, owned by `data-ht-timer-owned`, is inserted at the start of `[data-testid="sidebarColumn"]`; without a sidebar it floats near the lower right. The timer’s `role="timer"` has `aria-live="off"`. If X changes sidebar layout or visibility, update mounting and verify wide/narrow layouts plus the presence of X’s own search/messages controls.
+
+`activity.js` owns one serialized ledger in the service worker. Browser tab activation/removal/navigation and window focus events settle the previous interval and select the current eligible X tab. Five-second content heartbeats verify the selected tab and focused, non-minimized window through Chrome, checkpoint storage, and return the total. A second tab cannot add the same interval again. These APIs use existing X host access; there is no broad `tabs` or browsing-history permission.
+
+Storage schema:
+
+```js
+settings: { /* only the named boolean keys in settings.js */ }
+dailyUsage: { day: 'YYYY-MM-DD', milliseconds: 0 }
+```
+
+Only today’s total is retained. Live ownership/last checkpoint are memory-only, so restarting the worker/browser never backfills downtime. Split ordinary intervals at local midnight; discard gaps over 15 seconds as suspension. Normal heartbeats are five seconds, so abrupt termination may lose up to the latest checkpoint interval. This is a foreground-tab timer, not an idle-input detector.
+
+Regression checks belong in `test/activity.test.js` (ledger/focus/ownership), `test/preferences.test.js` (navigation/mounting/bridge), `test/popup.test.js` (persistence/errors), and the existing per-feature suites (independent switches). The popup no longer scans media, chooses quality, or follows download completion. Keep the worker’s sender validation: `usage-get` only from the exact popup, `activity-pulse` and `download-player` only from same-extension top-frame X content scripts.
+
+The green bird’s source is `extension/icons/twitter.svg`, adapted from Bootstrap Icons with its MIT notice alongside it. `npm run icons` uses the development-only `@resvg/resvg-js` package to regenerate PNGs; no rasterizer or other runtime library ships inside the extension. Keep the attribution when changing the artwork.
+
+Official API references: [Chrome storage](https://developer.chrome.com/docs/extensions/reference/api/storage), [tabs and host permissions](https://developer.chrome.com/docs/extensions/reference/api/tabs), and [window focus](https://developer.chrome.com/docs/extensions/reference/api/windows).

@@ -3,36 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Healthy Twitter</title>
+  <title>Healthy Twitter settings</title>
   <link rel="stylesheet" href="popup.css">
+  <script src="settings.js"></script>
   <script type="module" src="popup.js"></script>
 </head>
 <body>
   <header>
-    <img class="logo" src="icons/48.png" width="38" height="38" alt="">
-    <div><h1>Healthy Twitter</h1><p>Watch on your terms.</p></div>
-    <button id="refresh" class="icon-button" title="Refresh videos" aria-label="Refresh videos">↻</button>
+    <img src="icons/48.png" width="36" height="36" alt="">
+    <div><h1>Healthy Twitter</h1><p>A little more intentional.</p></div>
+    <span class="version">1.5</span>
   </header>
   <main>
-    <section class="playback-summary" aria-label="Playback protections">
-      <strong>Playback, by choice</strong>
-      <p>Autoplay off · Loops off · Starts muted · Paused previews greyed out</p>
-      <p>Post feedback and Block shortcuts, with Undo.</p>
+    <section class="today" aria-label="Today's Twitter time">
+      <div><span class="eyebrow">TODAY ON TWITTER</span><strong id="today-time">—:——:——</strong></div>
+      <p>Only while your Twitter tab<br>is active in a focused window.</p>
     </section>
-    <p id="status" role="status" aria-live="polite">Looking for videos…</p>
-    <div id="videos"></div>
+    <form id="settings" aria-label="Extension settings">
+      <fieldset><legend>Your time</legend>
+        <label><span>Open Home on Following<small>You can still choose For You.</small></span><input type="checkbox" name="defaultFollowing" role="switch"></label>
+        <label><span>Daily time counter<small>Show on the page. Store time locally.</small></span><input type="checkbox" name="showTimer" role="switch"></label>
+      </fieldset>
+      <fieldset><legend>Playback</legend>
+        <label><span>Disable autoplay</span><input type="checkbox" name="preventAutoplay" role="switch"></label>
+        <label><span>Disable video &amp; GIF loops</span><input type="checkbox" name="preventLoop" role="switch"></label>
+        <label><span>Start playback muted</span><input type="checkbox" name="startMuted" role="switch"></label>
+        <label><span>Grey out inactive media</span><input type="checkbox" name="greyPaused" role="switch"></label>
+      </fieldset>
+      <fieldset><legend>Post shortcuts <span>with Undo</span></legend>
+        <label><span>Not interested<small>In For You.</small></span><input type="checkbox" name="showNotInterested" role="switch"></label>
+        <label><span>Show less from this account<small>In For You.</small></span><input type="checkbox" name="showLessAccount" role="switch"></label>
+        <label><span>Block account<small>On timelines, posts, and replies.</small></span><input type="checkbox" name="showBlock" role="switch"></label>
+      </fieldset>
+      <fieldset><legend>Downloads</legend>
+        <label><span>Player download button</span><input type="checkbox" name="playerDownload" role="switch"></label>
+        <label><span>Right-click download item</span><input type="checkbox" name="menuDownload" role="switch"></label>
+        <p class="hint">Saves the best original MP4, including GIFs.</p>
+      </fieldset>
+    </form>
+    <p id="status" role="status" aria-live="polite">Loading settings…</p>
   </main>
-  <footer><span class="privacy-dot"></span>Runs locally. No tracking or extra service.</footer>
-  <template id="video-template">
-    <article class="video-card">
-      <div class="preview"><img class="poster" alt="Video preview" referrerpolicy="no-referrer"><span class="duration"></span></div>
-      <div class="card-content">
-        <div class="meta"><span class="author"></span><span class="format">MP4</span></div>
-        <p class="caption"></p>
-        <div class="controls"><select aria-label="Video quality"></select><button class="download">↓ <span>Download</span></button></div>
-        <p class="download-status" role="status" aria-live="polite" hidden></p>
-      </div>
-    </article>
-  </template>
+  <footer><span class="dot"></span>Saved on this device. No analytics or cloud sync.</footer>
 </body>
 </html>

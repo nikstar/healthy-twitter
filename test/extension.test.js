@@ -122,33 +122,29 @@ test('worker validates sender, resolves the clicked player, and never overwrites
     } }]; } },
   };
   const source = (await readFile(new URL('../extension/background.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-  vm.runInNewContext(source, { chrome, validateVideoURL, videoFilename, isTwitterPage, collectVideos });
+  vm.runInNewContext(source, { chrome, validateVideoURL, videoFilename, isTwitterPage, collectVideos, installActivity: () => ({}) });
   const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('popup.html') };
   assert.equal(listener({ type: 'download', url: mp4('720x1280') }, { ...sender, url: 'https://x.com' }, () => {}), undefined);
-  const bad = await new Promise(resolve => listener({ type: 'download', url: 'https://evil.test/video.mp4' }, sender, resolve));
-  assert.ok(bad.error);
-  const good = await new Promise(resolve => listener({ type: 'download', url: mp4('720x1280'), author: 'tester', postId: '123' }, sender, resolve));
-  assert.equal(good.id, 7);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].conflictAction, 'uniquify');
-  assert.equal(calls[0].saveAs, false);
+  assert.equal(listener({ type: 'download', url: mp4('720x1280') }, sender, () => {}), undefined, 'the settings popup no longer accepts download URLs');
   const contentSender = { id: chrome.runtime.id, tab: { id: 42 }, frameId: 0, url: 'https://x.com/test/status/456' };
   assert.equal(listener({ type: 'download', url: mp4('720x1280') }, contentSender, () => {}), undefined);
   assert.equal(listener({ type: 'download-player', playerToken: 'test' }, { ...contentSender, frameId: 1 }, () => {}), undefined);
   assert.equal(listener({ type: 'download-player', playerToken: 'test' }, { ...contentSender, url: 'https://evil.test' }, () => {}), undefined);
   const inline = await new Promise(resolve => listener({ type: 'download-player', playerToken: 'player-456' }, contentSender, resolve));
   assert.equal(inline.id, 7);
+  assert.equal(calls[0].conflictAction, 'uniquify');
+  assert.equal(calls[0].saveAs, false);
   assert.equal(scripts[0].target.tabId, 42);
   assert.deepEqual(Array.from(scripts[0].args), ['player-456']);
-  assert.equal(calls[1].filename, 'clicked_456_1_720x1280.mp4');
+  assert.equal(calls[0].filename, 'clicked_456_1_720x1280.mp4');
   const missing = await new Promise(resolve => listener({ type: 'download-player', playerToken: 'missing' }, contentSender, resolve));
   assert.match(missing.error, /No MP4/);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
 });
 
 test('manifest limits automatic integration to X/Twitter and packaged scripts', async () => {
   const manifest = JSON.parse(await readFile(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
-  assert.deepEqual(manifest.permissions, ['activeTab', 'scripting', 'downloads']);
+  assert.deepEqual(manifest.permissions, ['scripting', 'downloads', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['https://*.x.com/*', 'https://*.twitter.com/*']);
   for (const script of manifest.content_scripts) {
     assert.deepEqual(script.matches, manifest.host_permissions);

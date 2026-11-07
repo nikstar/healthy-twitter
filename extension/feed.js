@@ -3,6 +3,8 @@
   const installed = Symbol.for('healthy-twitter.feed');
   if (window[installed]) return;
   window[installed] = true;
+  const config = window[Symbol.for('healthy-twitter.settings')];
+  const enabled = kind => config?.value[{ 'not-interested': 'showNotInterested', 'less-account': 'showLessAccount', block: 'showBlock' }[kind]] !== false;
   const POST = 'article[data-testid="tweet"]';
   const OWNED = '[data-ht-feed-owned]';
   const rows = new WeakMap();
@@ -162,6 +164,7 @@
   }
 
   async function run(post, expected, kind, keyboard) {
+    if (!enabled(kind)) return;
     const context = contextFor(post, expected);
     if (!context) { message('This post changed. Try its menu instead.', true); return; }
     if ([...operations].some(op => op.active && (op.postId === context.id || (op.kind === 'block' && op.userId === context.userId)))) return;
@@ -237,7 +240,7 @@
     if (!id || !caret) { rows.get(post)?.node.remove(); rows.delete(post); return; }
     const context = contextFor(post, id);
     if (!context) { rows.get(post)?.node.remove(); rows.delete(post); return; }
-    const kinds = [...(forYou() && context.root ? ['not-interested', ...(context.childKey ? ['less-account'] : [])] : []), ...(!context.blocked ? ['block'] : [])];
+    const kinds = [...(forYou() && context.root ? ['not-interested', ...(context.childKey ? ['less-account'] : [])] : []), ...(!context.blocked ? ['block'] : [])].filter(enabled);
     const signature = `${id.id}/${id.handle}/${kinds.join(',')}`;
     const existing = rows.get(post);
     if (existing?.signature === signature && existing.node.isConnected) return;
@@ -280,6 +283,7 @@
       [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && !node.matches(OWNED)) ||
       [...record.removedNodes].some(node => node.nodeType === 1 && node.matches('.ht-feed-actions'))))) schedule();
   }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected', 'href'] });
+  config?.subscribe(schedule);
   window.addEventListener('popstate', schedule);
   scan();
 })();

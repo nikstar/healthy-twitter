@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
+const settingsSource = await readFile(new URL('../extension/settings.js', import.meta.url), 'utf8');
+const bridgeSource = await readFile(new URL('../extension/settings-bridge.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../extension/playback.js', import.meta.url), 'utf8');
 const markup = id => `<div data-testid="videoComponent" id="${id}"><video src="${id}.mp4" autoplay loop></video>
   <button class="play" aria-label="Reproducir">Play</button>
@@ -49,6 +51,7 @@ function fixture(t, html = markup('a') + markup('b')) {
     handlers.get(type).push(handler);
     originalAdd(type, handler, options);
   };
+  window.eval(settingsSource); window.eval(bridgeSource);
   window.eval(source);
   const trusted = (target, type = 'click', extra = {}) => {
     for (const handler of handlers.get(type) || []) handler({ target, isTrusted: true, button: 0, repeat: false, ...extra });
@@ -300,4 +303,40 @@ test('catches a native autoplay event and protects dynamically inserted videos',
   assert.equal(f.video('new').autoplay, false);
   assert.equal(f.video('new').loop, false);
   await assert.rejects(f.video('new').play(), { name: 'NotAllowedError' });
+});
+
+test('settings independently restore autoplay, loops, sound, and inactive styling', async t => {
+  const f = fixture(t);
+  const update = value => f.document.dispatchEvent(new f.window.CustomEvent('ht-settings', { detail: JSON.stringify(value) }));
+  update({ preventAutoplay: false, preventLoop: false, startMuted: false, greyPaused: false });
+  const video = f.video('a'); video.muted = false;
+  assert.equal(video.autoplay, true, 'restores the native requested flag');
+  assert.equal(video.loop, true);
+  await video.play();
+  assert.equal(video.muted, false);
+  assert.equal(f.document.documentElement.dataset.htGrey, 'false');
+  f.data(video).time = 9.9; video.currentTime = 0;
+  assert.equal(video.currentTime, 0, 'loop protection can be turned off');
+  update({ preventAutoplay: false, preventLoop: true });
+  f.end(video);
+  await assert.rejects(video.play(), { name: 'NotAllowedError' });
+  f.trusted(f.play('a')); await video.play();
+  assert.equal(video.muted, true);
+  update({}); video.pause();
+  await assert.rejects(video.play(), { name: 'NotAllowedError' });
+  assert.equal(video.loop, false); assert.equal(video.autoplay, false);
+  assert.equal(f.document.documentElement.dataset.htGrey, 'true');
+});
+
+test('turning off loop prevention permits X replay after an authorized start', async t => {
+  const f = fixture(t);
+  f.document.dispatchEvent(new f.window.CustomEvent('ht-settings', { detail: JSON.stringify({ preventLoop: false }) }));
+  f.trusted(f.play('a')); await f.video('a').play();
+  Object.assign(f.data(f.video('a')), { ended: true, paused: true });
+  f.video('a').dispatchEvent(new f.window.Event('pause'));
+  f.end(f.video('a'));
+  f.video('a').currentTime = 0;
+  await f.video('a').play();
+  assert.equal(f.video('a').paused, false);
+  await assert.rejects(f.video('b').play(), { name: 'NotAllowedError' }, 'autoplay is still independently disabled');
 });

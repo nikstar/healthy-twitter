@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.4.0**, documented **2026-11-07**.
+Baseline: version **1.5.0**, documented **2026-11-07**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
@@ -10,7 +10,7 @@ Healthy Twitter makes media playback deliberate, makes feed curation accessible 
 
 - Chrome Manifest V3 extension, currently declaring Chrome 111 or later.
 - Automatic integration is limited to HTTPS `x.com`, `twitter.com`, and their subdomains, in the top frame.
-- All protections are enabled by default. There is no settings page, per-feature toggle, cloud service, telemetry, or extension-owned persistent preference store.
+- All features are enabled by default and individually configurable in the toolbar settings popup. Preferences and the current daily time total are stored locally; there is no cloud service or telemetry. Playback and shortcut requirements below describe their enabled behavior.
 - Existing X controls, navigation, keyboard interaction, captions, volume, seeking, picture-in-picture, and fullscreen should remain usable.
 - The installable artifact is the `extension/` directory. No build step or runtime dependency installation is required.
 
@@ -109,9 +109,9 @@ Ignore synthetic clicks. Suppress duplicate actions on the same pending/hidden p
 
 Save progressive MP4 variants that are already available to the mounted X player. Blob/HLS playback may still have downloadable MP4 variants in the player's metadata.
 
-GIFs are saved as X's original MP4, without conversion to `.gif`, transcoding, or quality loss. The popup labels them **GIF · MP4**; inline actions say **Download GIF**.
+GIFs are saved as X's original MP4, without conversion to `.gif`, transcoding, or quality loss. Inline actions say **Download GIF**.
 
-Deduplicate variant URLs, then rank by pixel area and bitrate. Inline and context-menu actions choose the highest-ranked variant. The popup lets the user choose a quality and defaults to the best one. When dimensions cannot be determined, present the original variant without inventing a resolution.
+Deduplicate variant URLs, then rank by pixel area and bitrate. Inline and context-menu actions choose the highest-ranked variant. There is no separate quality picker in the settings popup. When dimensions cannot be determined, present the original variant without inventing a resolution.
 
 Unsupported: live broadcasts without a progressive MP4, HLS-only media, DRM/protected media, arbitrary external media hosts, and video conversion. No access-control bypass is part of this extension.
 
@@ -131,13 +131,9 @@ Target the player that was actually right-clicked. If a menu is reused for anoth
 
 Arrow keys, Home, and End must include the new item; Enter/Space activates it. Dismiss X's menu through its own event handling before starting the download. The baseline X menu dismisses on Escape **keyup**, so keydown alone is not sufficient.
 
-### DL-04 — Toolbar popup
+### DL-04 — Former toolbar download UI (retired in 1.5.0)
 
-The popup is named Healthy Twitter and summarizes the enabled protections. It scans the active X/Twitter tab and lists mounted downloadable media, prioritizing the open post, then visible players.
-
-Each card shows available author/caption, poster, duration, format, a quality selector, and Download. Missing or failed poster images must not break the card. Refresh scans again, and stale asynchronous results must not replace a newer scan.
-
-On other sites, prompt the user to open X/Twitter. When no variants are available, explain that the player may need to mount/start and offer Refresh. Handle page-access errors and invalidated extension contexts with actionable reload guidance.
+Version 1.4.0 had a mounted-media list, quality picker, refresh, preview metadata, and download status in the popup. At the user’s request, 1.5.0 replaces that surface with settings (SET-01). The player and right-click download actions remain. Do not restore the old popup during a website compatibility repair. The original implementation and specification remain in Git history.
 
 ### DL-05 — Saving and status
 
@@ -149,15 +145,52 @@ Filename pattern:
 <author>_<post-id>_<one-based-media-index>_<width>x<height>.mp4
 ```
 
-Sanitize all fields. Omit unknown dimensions; use safe fallback author/post identifiers when metadata is missing. Inline notifications report that a download started. The popup also follows completion/interruption while open, including files that finish before its first status query. Downloads continue after the popup closes.
+Sanitize all fields. Omit unknown dimensions; use safe fallback author/post identifiers when metadata is missing. Inline notifications report that a download started. Chrome’s own Downloads UI reports completion or interruption. Downloads continue independently of the settings popup.
 
-## 5. Security and privacy boundaries
+## 5. Home, time awareness, and settings
+
+### HOME-01 — Following by default
+
+On initial load of `/home` and whenever navigation enters Home from another route, select Following once its native tabs are available. Leave other routes alone. Wait for lazy-mounted tabs, and do not repeatedly switch tabs during rerenders. A deliberate choice of For You on that visit must remain selected. Enabling this preference while already on Home also selects Following once.
+
+This uses X’s native Home tab control, without changing account preferences or following relationships. The current integration assumes For You is first and Following second; update this binding if X changes the tab structure.
+
+### TIME-01 — Daily active Twitter time
+
+Show a prominent `TODAY ON TWITTER` card with `H:MM:SS` on Twitter pages. Prefer the right sidebar; use a compact floating card on layouts without it. Preserve a readable counter while the user browses. The timer is not an announcing live region: screen readers must not be interrupted every second.
+
+Count only when an X/Twitter tab is selected in the focused, non-minimized Chrome window. No accumulation for background tabs or unfocused Chrome windows. Multiple Twitter tabs/windows share one daily total and never multiply time. This measures active-tab time, not keyboard/mouse activity; reading without interaction still counts.
+
+Use the device’s local calendar day. Split a normal active interval at midnight; the new day starts from zero. Keep only the current day and its accumulated milliseconds, not visited URLs, post IDs, or a historical log. Persist the total across reloads and browser restarts. Never count browser downtime or long device-suspension gaps.
+
+The worker checkpoints on roughly five-second content heartbeats and browser activation/focus events. A crash may lose the last uncommitted few seconds. A gap longer than 15 seconds is treated as suspension and excluded instead of guessing how much was active. The visible seconds interpolate between successful checkpoints. Turning the preference off removes the card and stops collection while preserving today’s accumulated total.
+
+### SET-01 — Settings popup and identity
+
+The toolbar icon is the classic Twitter bird recolored green. Use the same mark in the settings popup; provide PNGs at 16, 32, 48, and 128 pixels. Keep the SVG source and its attribution/license notice in the package.
+
+Clicking the icon opens a settings page in the popup, with today’s saved time and these independent switches, all defaulting on:
+
+| Group | Preference keys | Behavior |
+| --- | --- | --- |
+| Your time | `defaultFollowing`, `showTimer` | Home default; visible daily counter and collection |
+| Playback | `preventAutoplay`, `preventLoop`, `startMuted`, `greyPaused` | Deliberate start; no loops; muted starts; inactive styling |
+| Post shortcuts | `showNotInterested`, `showLessAccount`, `showBlock` | Each author-row action independently |
+| Downloads | `playerDownload`, `menuDownload` | Player button and native right-click item independently |
+
+Save changes automatically and locally. Apply them to open X tabs without another extension reload. Unknown/malformed stored values fall back to defaults. Show load/save errors instead of claiming success; a failed save restores the switch. Disabling a feed shortcut does not reverse earlier account actions or remove pending Undo controls.
+
+When autoplay or loop prevention is disabled, restore recorded native flags and allow X to control that behavior. Turning off start-muted does not force the current video to unmute; subsequent playback uses X’s normal sound behavior. These settings are independent: disabling autoplay prevention must not disable loop prevention. When loop prevention is off, an already-authorized session may loop.
+
+On a fresh page, the document-start guard uses safe defaults until saved preferences arrive. Only boolean preferences cross into the page’s main world; page events cannot persist settings or invoke extension APIs.
+
+## 6. Security and privacy boundaries
 
 | Permission/access | Purpose |
 | --- | --- |
 | X/Twitter HTTPS host access | Install page controls and the playback guard |
 | `scripting` | Inspect the selected page's mounted media metadata in the main world |
-| `activeTab` | Support the toolbar workflow |
+| `storage` | Local settings and the current daily usage total |
 | `downloads` | Start downloads and display their status |
 
 No browsing-history permission, credential extraction, remote extension code, analytics endpoint, external downloader, or extension-owned account API client is required.
@@ -166,9 +199,9 @@ Feed actions intentionally change the user's X account/recommendations when the 
 
 Download URLs must be HTTPS on exactly `video.twimg.com`, with an `.mp4` pathname, no embedded credentials or non-default port, and no known `/pl/` or `/aud/` fragment path. Preserve valid CDN query parameters. Poster URLs are limited to HTTPS `pbs.twimg.com`.
 
-The download worker validates the extension sender. It accepts direct URL requests only from its own popup. An X content script sends only a bounded player token; the worker resolves that exact player in the sender's top frame and validates the resulting URL again. A missing target is an error, never a reason to download another post's video.
+The download worker validates the extension sender. The settings popup cannot submit download URLs. An X content script sends only a bounded player token; the worker resolves that exact player in the sender's top frame and validates the resulting URL again. A missing target is an error, never a reason to download another post's video.
 
-## 6. Architecture and lifecycle
+## 7. Architecture and lifecycle
 
 | Component | Role |
 | --- | --- |
@@ -177,27 +210,34 @@ The download worker validates the extension sender. It accepts direct URL reques
 | `content.js`, `content.css` | Isolated world at document idle; download buttons, native context menus, notifications |
 | `collector.js` | Self-contained function serialized into the main world to inspect mounted media |
 | `background.js`, `shared.js` | Sender/URL validation, exact-player extraction, safe filenames, Chrome Downloads |
-| `popup.*` | Toolbar media list, quality selection, refresh, download status |
+| `popup.*` | Settings switches, persistence/errors, today’s saved total |
+| `settings.js`, `settings-bridge.js` | Shared boolean schema and main/isolated-world preference delivery |
+| `preferences.js`, `preferences.css` | Following selection, local settings bridge, visible timer and heartbeat |
+| `activity.js` | Serialized service-worker time ledger, browser focus/tab checks, day rollover |
 
-Use event listeners and batched mutation observation rather than continuous polling. Cover initial page load, SPA navigation, inserted players/posts, source replacement, and React remounts. Ignore owned insertions and ordinary timer text where possible so playback does not cause perpetual rescanning.
+Use event listeners and batched mutation observation for player/post controls. The time counter has a one-second display tick and five-second heartbeat; the display tick also catches SPA route changes that lack DOM mutations. Cover initial page load, SPA navigation, inserted players/posts, source replacement, and React remounts. Ignore owned insertions and ordinary timer text where possible so playback does not cause perpetual rescanning.
 
 Use narrowly scoped identities and traversal limits. Keep media collection bounded to a player/post and feed actions bounded to the matching article/entry. Do not hard-code minified React component names or user-specific feedback keys.
 
-## 7. Acceptance and evidence
+## 8. Acceptance and evidence
 
 | Area | Automated coverage | Live acceptance checks |
 | --- | --- | --- |
 | Playback | `test/playback.test.js` | Paused load/scroll; muted start; unmute; pause/resume; end/replay; GIF; seeking; actual grey/color state |
 | Feed | `test/feed.test.js` | Three For You buttons; Block elsewhere; matching author; layout and tooltips; approved account/feedback action and Undo |
 | Download UI | `test/content.test.js` | Player/CC placement; GIF badge; right-click target; menu dismissal; keyboard access |
-| Collector/worker | `test/extension.test.js` | Blob-backed player extraction; real MP4 save; correct media/filename; popup quality/status |
+| Collector/worker | `test/extension.test.js` | Blob-backed player extraction; real MP4 save; correct media/filename; Chrome download status |
+| Preferences | `test/preferences.test.js`, `test/popup.test.js` | Following default/manual override; live switches, persistence, save errors; timer placement |
+| Time accounting | `test/activity.test.js` | Active/background tabs, focus loss, multiple windows, local midnight, reload and suspend |
 | Local browser fixtures | `test/browser/playback.html`, `test/browser/feed.html` | Trusted input, actual media events, visible toasts, tab switching, simulated errors |
 
-Baseline automated suite: **45 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
+Baseline automated suite: **59 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
 
 On 2026-11-07, real X pages were used to inspect and visually verify player controls, downloader paths, autoplay/loop prevention, muted playback, and post-shortcut placement/scope. Feed mutation/Undo sequences were exercised with synthetic native bindings in unit tests and a local Chrome fixture; real accounts were not arbitrarily blocked or given recommendation feedback for testing. Distinguish fixture validation, temporary page previews, and validation of the installed/reloaded extension in future reports.
 
-## 8. Non-goals and constraints
+Version 1.5.0’s settings popup, persistence, timer layout, and Following/manual-tab behavior were also checked in a local Chrome preview. Installed-extension checks are separate from those synthetic previews.
+
+## 9. Non-goals and constraints
 
 - No automatic liking, posting, following, feed curation, or account blocking without a deliberate shortcut click.
 - No guarantee that a native X account change reverses every related platform side effect.

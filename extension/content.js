@@ -1,4 +1,6 @@
 (() => {
+  const config = window[Symbol.for('healthy-twitter.settings')];
+  const enabled = key => config?.value[key] !== false;
   const PLAYER = '[data-testid="videoComponent"]';
   const OWNED = '[data-xvs-owned]';
   const ACTION = '[data-xvs-action="download"]';
@@ -123,6 +125,7 @@
   }
 
   function installButton(player) {
+    if (!enabled('playerDownload')) { player.querySelectorAll('.xvs-control-slot').forEach(node => node.remove()); return; }
     const controls = controlsFor(player);
     const gif = isGif(player);
     const existing = player.querySelector(ACTION);
@@ -153,7 +156,7 @@
     button.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      if (event.isTrusted) download(player, button);
+      if (event.isTrusted && enabled('playerDownload')) download(player, button);
     });
     holder.append(button);
     if (controls) controls.row.insertBefore(holder, controls.slot);
@@ -161,6 +164,7 @@
   }
 
   function installMenuItem() {
+    if (!enabled('menuDownload')) { document.querySelectorAll('.xvs-menu-item').forEach(node => node.remove()); return; }
     const videoMenuMarker = '[data-testid="copyVideoLinkAtCurrentTimeContextMenuItem"], [data-testid="postVideoContextMenuItem"]';
     for (const item of document.querySelectorAll('.xvs-menu-item')) {
       const menu = item.closest('[role="menu"]');
@@ -212,7 +216,7 @@
       const activate = event => {
         event.preventDefault();
         event.stopPropagation();
-        if (!event.isTrusted) return;
+        if (!event.isTrusted || !enabled('menuDownload')) return;
         const player = menuPlayers.get(menu);
         // Ask X's own menu to dismiss, preserving its focus and React state.
         item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
@@ -261,6 +265,7 @@
     if (event.isTrusted && event.button !== 2 && event.target instanceof Element && !event.target.closest('[role="menu"]')) context = null;
   }, true);
   // GIF sources and posters may arrive after the player shell is mounted.
+  config?.subscribe(schedule);
   document.addEventListener('loadedmetadata', schedule, true);
   new MutationObserver(records => {
     // Ignore the player's timer text and our own insertions to avoid continuous

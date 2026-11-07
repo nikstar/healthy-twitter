@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
+const settingsSource = await readFile(new URL('../extension/settings.js', import.meta.url), 'utf8');
+const bridgeSource = await readFile(new URL('../extension/settings-bridge.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../extension/feed.js', import.meta.url), 'utf8');
 const postHTML = (id, handle) => `<div data-testid="cellInnerDiv"><article data-testid="tweet" id="post-${id}">
   <div class="author-row"><div data-testid="User-Name"><a href="/${handle}">@${handle}</a><a href="/${handle}/status/${id}"><time>1h</time></a></div>
@@ -49,6 +51,7 @@ function fixture(t, { path = '/home', selected = 0, posts = [['11', 'alice', '10
     post.__reactFiber$fixture = { memoizedProps: feedback, dependencies: { firstContext: { memoizedValue: { store } } } };
     contexts.set(id, { account, feedback, post });
   }
+  window.eval(settingsSource); window.eval(bridgeSource);
   window.eval(source);
   const trusted = (target, extra = {}) => {
     assert.ok(target, 'action exists');
@@ -227,4 +230,18 @@ test('keyboard activation does not reach X’s post navigation shortcuts', t => 
     f.button('11', 'block').dispatchEvent(new f.window.KeyboardEvent(type, { key, bubbles: true }));
   }
   assert.equal(navigations, 0);
+});
+
+test('settings hide individual shortcuts without removing an outstanding Undo', async t => {
+  const f = fixture(t);
+  f.trusted(f.button('11', 'block'));
+  await f.settle();
+  f.document.dispatchEvent(new f.window.CustomEvent('ht-settings', { detail: JSON.stringify({ showBlock: false, showNotInterested: false }) }));
+  await f.settle();
+  assert.equal(f.button('21', 'block'), null);
+  assert.equal(f.button('21', 'not-interested'), null);
+  assert.ok(f.button('21', 'less-account'));
+  assert.ok(f.undo());
+  f.trusted(f.undo()); await f.settle();
+  assert.equal(f.records.at(-1).type, 'unblock');
 });

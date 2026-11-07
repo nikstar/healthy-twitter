@@ -1,5 +1,8 @@
+import { installActivity } from './activity.js';
 import { isTwitterPage, validateVideoURL, videoFilename } from './shared.js';
 import { collectVideos } from './collector.js';
+
+const activity = installActivity(chrome);
 
 async function startDownload(video) {
   const url = validateVideoURL(video.url);
@@ -29,7 +32,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const fromPopup = sender.url === chrome.runtime.getURL('popup.html');
   const fromContent = Number.isInteger(sender.tab?.id) && sender.frameId === 0 && isTwitterPage(sender.url);
   let operation;
-  if (fromPopup && message?.type === 'download') operation = startDownload(message);
+  if (fromPopup && message?.type === 'usage-get') operation = activity.getUsage();
+  else if (fromContent && message?.type === 'activity-pulse') operation = activity.pulse(sender);
   // Content scripts send only a player identity, not an arbitrary download URL.
   // The worker resolves that specific player from the sender's tab each time.
   else if (fromContent && message?.type === 'download-player') operation = downloadPlayer(message, sender);
