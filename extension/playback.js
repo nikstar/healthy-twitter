@@ -10,6 +10,7 @@
   const requestedFlags = new WeakMap();
   const nativeLoops = new WeakMap();
   const PLAYER = '[data-testid="videoComponent"]';
+  const SHELL = '[data-testid="videoPlayer"]';
   const mediaPrototype = HTMLMediaElement.prototype;
   const nativePlay = mediaPrototype.play;
   const nativePause = mediaPrototype.pause;
@@ -67,7 +68,10 @@
   function stateFor(video) {
     let state = states.get(video);
     if (!state) {
-      const pending = pendingPlayers.get(video.closest(PLAYER)) || 0;
+      const player = video.closest(PLAYER), shell = video.closest(SHELL);
+      const pending = pendingPlayers.get(player) || pendingPlayers.get(shell) || 0;
+      if (player) pendingPlayers.delete(player);
+      if (shell) pendingPlayers.delete(shell);
       state = { allowed: false, intentUntil: pending, seekUntil: 0, finished: false, source: sourceOf(video) };
       states.set(video, state);
       flagsOff(video);
@@ -147,7 +151,9 @@
       if (isVideo(this) && !(this.ended && !enabled('preventLoop') && stateFor(this).allowed)) {
         const state = stateFor(this);
         state.allowed = false;
-        state.intentUntil = 0;
+        // X may render Pause on an already-paused element immediately before
+        // honoring Play. Keep that one pending gesture, without extending it.
+        if (!this.paused || state.intentUntil <= now()) state.intentUntil = 0;
         paint(this, false);
       }
       return nativePause.apply(this, args);
@@ -185,16 +191,27 @@
 
   function playerFor(event) {
     if (!(event.target instanceof Element)) return null;
-    const player = event.target.closest(PLAYER);
+    let player = event.target.closest(PLAYER) ||
+      event.target.closest('[data-testid="previewInterstitial"] [data-testid="playButton"]')?.closest(SHELL);
+    let immersivePlay = false;
+    if (!player && event.target.closest('[data-testid="vss-scroll-view"]')) {
+      // The vertical viewer renders its controls beside the videoComponent.
+      // Match a single tweet cell, never the whole recommended-video list.
+      const cell = event.target.closest('[data-testid^="cellInnerDiv-tweet-"]');
+      const players = cell?.querySelectorAll(PLAYER);
+      const button = event.target.closest('button, [role="button"]');
+      immersivePlay = !!button?.querySelector('[data-testid^="immersive-tweet-play-button-"]');
+      if (players?.length === 1 && (immersivePlay || event.target.closest('[role="slider"]'))) player = players[0];
+    }
     const video = isVideo(event.target) ? event.target : player?.querySelector('video');
-    return player || video ? { player, video } : null;
+    return player || video ? { player, video, immersivePlay } : null;
   }
 
   function gesture(event) {
     if (!event.isTrusted || event.repeat || (event.type === 'click' && event.button !== 0)) return;
     const found = playerFor(event);
     if (!found || event.target.closest('[data-xvs-owned], a, input, textarea, select, [contenteditable="true"]')) return;
-    const { player, video } = found;
+    const { player, video, immersivePlay } = found;
     const slider = event.target.closest('[role="slider"]');
     if (slider) {
       if (video) stateFor(video).seekUntil = now() + 1500;
@@ -202,7 +219,7 @@
     }
     if (event.type === 'keydown' && ![' ', 'Spacebar', 'Enter', 'k', 'K'].includes(event.key)) return;
     const button = event.target.closest('button, [role="button"]');
-    if (button && player) {
+    if (button && player && !immersivePlay) {
       // Paused players can show both a large circular Play overlay and a
       // smaller Play/Pause control. Accept either, independently of language.
       const buttons = [...player.querySelectorAll('button, [role="button"]')].filter(element => !element.closest('[data-xvs-owned]'));

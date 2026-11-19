@@ -272,7 +272,9 @@ Existing automated fixtures cover many edge cases; this matrix is a live compati
 
 ## 10. Settings, Home navigation, and time accounting (1.5.0)
 
-Before debugging an apparent regression, check whether the relevant switch is enabled. `settings.js` defines the complete boolean schema and defaults. The popup stores only normalized `settings` in `chrome.storage.local`. `preferences.js` reads it in the isolated world at document start and broadcasts JSON through `ht-settings`; `settings-bridge.js` maintains a separate `Symbol.for('healthy-twitter.settings')` object in each world. The ready event handles script injection ordering. This bridge carries only UI behavior booleans, never storage access, account data, credentials, or commands. It is not a trusted boundary for account operations.
+Before debugging an apparent regression, check whether the relevant switch is enabled. `settings.js` defines the complete boolean schema and defaults. The popup stores only normalized `settings` in `chrome.storage.local`. `preferences.js` reads it in the isolated world at document start and broadcasts JSON through `ht-settings`. `settings-bridge.js` handles the isolated world; the standalone `settings-page.js` initializes `Symbol.for('healthy-twitter.settings')` in MAIN before any consumer. The ready event handles script injection ordering. This bridge carries only UI behavior booleans, never storage access, account data, credentials, or commands. It is not a trusted boundary for account operations.
+
+Do not declare the same JavaScript file path in both execution worlds. In the 1.6.0 installed-extension inspection, the MAIN audio/playback scripts existed but their settings object was undefined: the shared settings paths had not executed there. The dedicated MAIN receiver avoids this deduplication. MAIN consumers default missing values to on; the receiver accepts boolean values only, and a test ensures all schema defaults remain on. Add an explicit safe default if a future setting defaults off. Verify both worlds and actual settings changes after installation; unit tests evaluating source files manually do not exercise Chrome's injection deduplication.
 
 Playback keeps its prototype wrappers installed and branches on current preferences. It records native autoplay/loop requests and local X loop values so disabling protection can restore them. `data-ht-grey="false"` on the root disables the inactive CSS filter. Feed and download scripts rescan when preferences change. Outstanding feed Undo operations remain valid even if their shortcut is switched off.
 
@@ -302,7 +304,7 @@ Official API references: [Chrome storage](https://developer.chrome.com/docs/exte
 
 A browser being silent is not proof that it never initialized an output device. X inspection found multiple videos at `readyState = 4`, paused but unmuted, while the old guard only muted at `play()`. No live AudioContext instances were found at that inspection point; do not report Web Audio as the confirmed cause. Chromium’s renderer has separate real/null audio sinks, and its media-focus bookkeeping considers whether media was previously unmuted. Early muting and deferring initialization address that gap. See [Chromium’s audio renderer](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/media/renderers/audio_renderer_impl.cc).
 
-Required manifest order in the document-start MAIN-world entry: `settings.js`, `settings-bridge.js`, `audio.js`, `playback.js`. Loading the audio guard after X caches native constructors/methods or after a media pipeline exists misses the initialization window. Refresh all existing X tabs after reloading the extension.
+Required manifest order in the document-start MAIN-world entry: `settings-page.js`, `viewer.js`, `audio.js`, `playback.js`. Loading the audio guard after X caches native constructors/methods or after a media pipeline exists misses the initialization window. Refresh all existing X tabs after reloading the extension.
 
 `audio.js` protects media factories (`Document.createElement`, `createElementNS`, and `Audio`), media source/mute/defaultMute/preload setters, relevant attributes, `load()`, and audio-only playback. A mutation observer covers parser/cloned elements. Set native mute/defaultMute before handing a created node to X. `preload="none"` is a hint, so early `load()` calls are also deferred; the browser fixture demonstrated that calling native `load()` immediately can still fetch metadata. Flush the deferred load only when playback reaches the permitted native-play path. Preserve pending explicit Play through initial `emptied` events.
 
@@ -325,3 +327,34 @@ If switching persists, capture whether it occurs at navigation, metadata loading
 ### Device acceptance result
 
 On 2026-11-07 the user reloaded 1.6.0 and answered “Reloaded — AirPods stayed on phone” to the requested check with phone audio playing while opening X and pressing Play muted. The reported handoff problem was resolved on that setup. Keep the cold-load and muted-Play checks when refreshing this integration; audible Unmute, calls, other browser/OS versions, and every feed experiment are not covered by that single result.
+
+## 12. Vertical video viewer (1.7.0)
+
+This is a separate surface from an inline player's fullscreen button. The observed route is `/<author>/status/<id>/mediaviewer`; X updates it to `mediaViewer?currentTweet=…&currentTweetUser=…` while scrolling. The scroll container is `[data-testid="vss-scroll-view"]`, with individual `[data-testid^="cellInnerDiv-tweet-"]` cells. The accessible region is `ImmersiveMediaViewer`.
+
+### Native policy and repair point
+
+`bundle.ImmersiveMediaViewer` owns the snap scroller. `loader.immersiveTweetHandler` reads `explore_relaunch_enable_auto_play`, subscribes to its local player's `tracksFinished`, and calls the viewer's `adjustFocusBy(1)` on completion. This is why removing HTML `autoplay` or `loop` alone cannot prevent the next-post scroll.
+
+`viewer.js` walks at most 100 React return fibers above `main`, looking only for a provider's `memoizedProps.value.featureSwitches`. It wraps that object's `getFeatureSwitch({ name })`, preserving its receiver/arguments and original return value for every other key. For the one auto-play flag, `preventAutoAdvance` returns a copy with `value: false`. Do not mutate the original flag record, replace the entire flag service, block global scrolling, or swallow `ended`: those would damage manual navigation or normal completion UI. Disabling the setting restores X's original result. Native viewer rerenders pick up changes; test a setting change followed by Play/Replay in an already-open viewer as well as opening a fresh viewer.
+
+Two different rollout flags control whether the viewer exists at all: `explore_relaunch_enable_immersive_web` and `explore_relaunch_enable_video_carousels_immersive_viewer`. **Production code must never enable these.** On 2026-11-19 both were off in the desktop session, including under an iPhone user-agent override, and direct navigation returned Not found. For developer verification only, the flags were overridden in one temporary page through its existing local provider, and X's own router opened the viewer. Remove that override by refreshing/closing the test page. Record such diagnostic changes explicitly; they are not evidence that the viewer is enabled for every account or browser.
+
+### Playback and sound bindings
+
+- The immersive viewer's Play icon has `data-testid="immersive-tweet-play-button-<id>"` inside its button. Controls are outside `videoComponent`. Scope the button to its nearest tweet cell inside `vss-scroll-view`, then require exactly one player. The same mapping supports the native scrubber. Mute, captions, Close, links, or other cells must not authorize Play.
+- Sound icons use `immersive-tweet-unmute-icon-<id>` / `immersive-tweet-mute-icon-<id>`. A trusted action grants sound only for the sole video in that same cell. The audio guard continues to mute before initialization and revoke sound on Pause/end/source changes.
+- Inline mobile previews use `previewInterstitial` and `playButton` before mounting the video. Carry a short-lived, single-use Play intent through the `videoPlayer` shell; style that preview's media in grey too.
+- X can call `pause()` on an already-paused media element during its Play render. Preserve an unexpired Play intent across that redundant call, but never extend its deadline or preserve authorization after an actual playing-to-paused transition.
+
+### Verification record and repeatable checks
+
+Use a 390 × 844 Chrome touch viewport and the public sample post in the spec. Device emulation approximates the mobile page; it does not execute Safari/WebKit. Safari user-agent spoofing alone stalled the inline player during this investigation and was not treated as Safari acceptance.
+
+1. Baseline: in the enabled immersive viewer, temporarily permit native video starts while retaining muted audio. The 10.334-second sample ended, scroll offset changed from 0 to 844, the URL selected the next post, and the next video's time advanced.
+2. Guard preview: install `settings-page.js` and `viewer.js` into that diagnostic page. Replay the same clip. At completion, offset remained 0 and the current post stayed selected; the adjacent video remained paused.
+3. Playback preview: apply the new playback guard and use the viewer's actual Play button. It starts muted. At completion the viewer still stays put. A manual forward swipe reaches offset 844, while the next clip stays paused; its own Play button starts it muted. Swiping backward also remains available.
+4. Automated coverage: `test/viewer.test.js` checks exact flag scope, preserved records/receiver, opt-out behavior, and provider remounts. Playback/audio tests cover sibling control targeting, consumed preview intent, redundant Pause, and rejected automatic next-player/source starts. `test/settings-page.test.js` and the manifest test prevent the missing-MAIN-settings regression.
+5. Installed acceptance: reload the unpacked extension once, refresh X, check the MAIN settings object and popup switches, then repeat the viewer checks where X enables that viewer. The preceding live checks used temporary page previews, not a reloaded 1.7.0 package. Real Safari/iPhone installation and device acceptance are still pending a separate port.
+
+If X renames/removes the flag or changes the provider, rediscover the viewer's completion subscriber before repairing the hook. Do not replace it with generic scroll suppression or an unverified navigation interceptor. Native Play gating still prevents unsolicited video starts if the viewer-policy hook no longer matches, but that alone does not guarantee the page will stay on the same post.

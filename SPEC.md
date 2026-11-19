@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.6.0**, documented **2026-11-07**.
+Baseline: version **1.7.0**, documented **2026-11-19**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
@@ -24,7 +24,9 @@ A deliberate Play/Replay action or click on the playback surface authorizes only
 
 Mute, captions, settings, downloads, links, and actions on another post must not authorize playback. Synthetic page-generated clicks must not authorize it. Audio-only elements are outside the video playback/loop guard; AUDIO-01 separately prevents their background audio starts.
 
-The guard starts before X's player code. It covers videos inserted later, lazy-created players, and elements reused for a different media source. A pending explicit Play action must survive initial source/metadata loading. A new source must not inherit an old playback session.
+The guard starts before X's player code. It covers videos inserted later, lazy-created players, and elements reused for a different media source. A pending explicit Play action must survive initial source/metadata loading and a redundant native Pause call on an already-paused element during Play rendering. This must not extend the gesture window. A new source must not inherit an old playback session.
+
+Recognize the mobile preview's Play button before the video exists, consuming its permission once in that shell. In the immersive vertical viewer, Play and seeking controls may be siblings of the player: resolve only the single player in that exact tweet cell. Mute, captions, neighboring clips, and ambiguous cells must not grant playback permission.
 
 ### PLY-02 — One playback per deliberate start
 
@@ -45,6 +47,14 @@ Setting `video.muted = true` once is insufficient: X may reapply its previous so
 Paused video frames, unloaded preview thumbnails, buffering media, and completed clips appear greyscale and dimmed. Actual playback restores normal color. Player buttons and other controls keep their normal contrast.
 
 The baseline filter is `grayscale(1) brightness(.65)`. This is applied to media and poster images/backgrounds, not the entire player container. Playback color is restored on actual `playing`, not merely a pending `play()` request.
+
+### PLY-05 — No automatic next video
+
+With `preventAutoAdvance` enabled, finishing a clip in X's full-screen vertical viewer must not scroll to or select the next recommended video. Keep the current clip and native completion/replay UI. Do not cancel global scroll, touch, or `ended` events. Manual swiping and next/previous navigation remain X's own behavior.
+
+This is independent of PLY-01 and PLY-02: autoplay controls whether a selected video starts, loop prevention controls repeats, and auto-advance controls the viewer moving to another post. A manual swipe alone does not grant Play permission while autoplay prevention is on. The viewer's separate Play and Unmute controls must target only the video in that tweet cell.
+
+Turning this setting off restores X's native policy; it does not force auto-advance on if X has disabled it. This setting changes only local page behavior. Do not enable X rollout flags in the shipped extension or save account settings. The current implementation depends on X's viewer feature-switch contract and must be refreshed if that changes.
 
 ### AUDIO-01 — Prevent background audio/device activation
 
@@ -186,7 +196,7 @@ Clicking the icon opens a settings page in the popup, with today’s saved time 
 | Group | Preference keys | Behavior |
 | --- | --- | --- |
 | Your time | `defaultFollowing`, `showTimer` | Home default; visible daily counter and collection |
-| Playback | `preventBackgroundAudio`, `preventAutoplay`, `preventLoop`, `startMuted`, `greyPaused` | Early audio protection; deliberate start; no loops; muted starts; inactive styling |
+| Playback | `preventBackgroundAudio`, `preventAutoplay`, `preventAutoAdvance`, `preventLoop`, `startMuted`, `greyPaused` | Early audio protection; deliberate start; no next-video scroll; no loops; muted starts; inactive styling |
 | Post shortcuts | `showNotInterested`, `showLessAccount`, `showBlock` | Each author-row action independently |
 | Downloads | `playerDownload`, `menuDownload` | Player button and native right-click item independently |
 
@@ -217,6 +227,7 @@ The download worker validates the extension sender. The settings popup cannot su
 
 | Component | Role |
 | --- | --- |
+| `viewer.js` | Main world at document start; disables only the immersive viewer's automatic-next policy |
 | `audio.js` | Main world at document start, before playback; early mute/preload/load guard and no-output Web Audio |
 | `playback.js`, `playback.css` | Main world at document start; native media guard, local X player synchronization, inactive styling |
 | `feed.js`, `feed.css` | Main world at document idle; author-row controls, native feed actions, Undo, local visibility |
@@ -224,7 +235,7 @@ The download worker validates the extension sender. The settings popup cannot su
 | `collector.js` | Self-contained function serialized into the main world to inspect mounted media |
 | `background.js`, `shared.js` | Sender/URL validation, exact-player extraction, safe filenames, Chrome Downloads |
 | `popup.*` | Settings switches, persistence/errors, today’s saved total |
-| `settings.js`, `settings-bridge.js` | Shared boolean schema and main/isolated-world preference delivery |
+| `settings.js`, `settings-bridge.js`, `settings-page.js` | Boolean schema, isolated bridge, and a dedicated standalone MAIN-world receiver |
 | `preferences.js`, `preferences.css` | Following selection, local settings bridge, visible timer and heartbeat |
 | `activity.js` | Serialized service-worker time ledger, browser focus/tab checks, day rollover |
 
@@ -238,6 +249,7 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 | --- | --- | --- |
 | Background audio | `test/audio.test.js`, `test/browser/audio.html` | Cold-load mute/preload; no native load before Play; silent Web Audio; native sound controls; AirPods phone-to-Mac check |
 | Playback | `test/playback.test.js` | Paused load/scroll; muted start; unmute; pause/resume; end/replay; GIF; seeking; actual grey/color state |
+| Vertical viewer | `test/viewer.test.js`, playback/audio suites | End stays on current post; manual swipe still moves; next clip requires Play; native viewer sound controls |
 | Feed | `test/feed.test.js` | Three For You buttons; Block elsewhere; matching author; layout and tooltips; approved account/feedback action and Undo |
 | Download UI | `test/content.test.js` | Player/CC placement; GIF badge; right-click target; menu dismissal; keyboard access |
 | Collector/worker | `test/extension.test.js` | Blob-backed player extraction; real MP4 save; correct media/filename; Chrome download status |
@@ -245,11 +257,13 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 | Time accounting | `test/activity.test.js` | Active/background tabs, focus loss, multiple windows, local midnight, reload and suspend |
 | Local browser fixtures | `test/browser/playback.html`, `test/browser/feed.html` | Trusted input, actual media events, visible toasts, tab switching, simulated errors |
 
-Baseline automated suite: **72 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
+Baseline automated suite: **80 tests**. Run `npm ci`, `npm test`, and `npm run check`. CI runs the same commands on Node 24.
 
 On 2026-11-07, real X pages were used to inspect and visually verify player controls, downloader paths, autoplay/loop prevention, muted playback, and post-shortcut placement/scope. Feed mutation/Undo sequences were exercised with synthetic native bindings in unit tests and a local Chrome fixture; real accounts were not arbitrarily blocked or given recommendation feedback for testing. Distinguish fixture validation, temporary page previews, and validation of the installed/reloaded extension in future reports.
 
 Version 1.5.0’s settings popup, persistence, timer layout, and Following/manual-tab behavior were also checked in a local Chrome preview. Installed-extension checks are separate from those synthetic previews.
+
+On 2026-11-19, Chrome with a 390 × 844 touch viewport reproduced the immersive viewer advancing one screen (844px) after the sample clip ended and starting the next clip. The viewer rollout flags were off in this session, so they were temporarily enabled in the diagnostic page; production code never enables them. A temporary preview of the new guard kept the completed clip selected at scroll offset zero, with its neighbor paused. Safari identity spoofing alone is not Safari execution. Porting/package installation and acceptance on an actual iPhone remain unverified.
 
 In 1.6.0 browser diagnostics on X found paused, unmuted, initialized video elements and no live realtime AudioContexts at the inspected moment. This suggests an early-media-initialization gap but does not prove the cause of Bluetooth handoff. A real Chrome fixture verified `readyState = 0` before Play, muted manual playback, rejected background unmute/audio requests, and `sinkId.type = "none"`. On 2026-11-07, after reloading 1.6.0, the user confirmed that AirPods stayed with the phone during the requested open-X/muted-Play check. This is a successful device-level check on that setup, not a guarantee for every OS/browser/device combination.
 

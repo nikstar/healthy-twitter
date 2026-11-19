@@ -153,6 +153,12 @@ test('manifest limits automatic integration to X/Twitter and packaged scripts', 
   const guard = manifest.content_scripts.find(script => script.js.includes('playback.js'));
   assert.equal(guard.run_at, 'document_start');
   assert.equal(guard.world, 'MAIN');
+  assert.equal(guard.js[0], 'settings-page.js');
+  const paths = new Set();
+  for (const script of manifest.content_scripts) for (const path of script.js) {
+    assert.ok(!paths.has(path), 'Chrome must not deduplicate shared script paths across execution worlds');
+    paths.add(path);
+  }
   assert.ok(guard.js.indexOf('audio.js') >= 0 && guard.js.indexOf('audio.js') < guard.js.indexOf('playback.js'), 'early audio protection must run before playback');
   const feed = manifest.content_scripts.find(script => script.js.includes('feed.js'));
   assert.equal(feed.world, 'MAIN');

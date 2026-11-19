@@ -156,8 +156,16 @@
       return;
     }
     const player = target.closest('[data-testid="videoComponent"]');
-    const video = target instanceof HTMLVideoElement ? target : player?.querySelector('video');
-    if (video && ((target === video && video.controls) || (player && (soundControl(target, player) ||
+    let video = target instanceof HTMLVideoElement ? target : player?.querySelector('video');
+    let immersiveSound = false;
+    if (!video && target.closest('[data-testid="vss-scroll-view"]')) {
+      const cell = target.closest('[data-testid^="cellInnerDiv-tweet-"]');
+      const videos = cell?.querySelectorAll('video');
+      const button = target.closest('button, [role="button"]');
+      immersiveSound = !!button?.querySelector('[data-testid^="immersive-tweet-unmute-icon-"], [data-testid^="immersive-tweet-mute-icon-"]');
+      if (videos?.length === 1 && immersiveSound) video = videos[0];
+    }
+    if (video && (immersiveSound || (target === video && video.controls) || (player && (soundControl(target, player) ||
       (event.type === 'keydown' && ['m', 'M'].includes(event.key)))))) stateFor(video).intent = now() + 1500;
   }
   for (const type of ['pointerdown', 'click', 'keydown']) document.addEventListener(type, gesture, true);

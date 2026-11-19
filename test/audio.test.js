@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
-const sources = await Promise.all(['settings.js','settings-bridge.js','audio.js','playback.js'].map(file => readFile(new URL(`../extension/${file}`, import.meta.url), 'utf8')));
+const sources = await Promise.all(['settings-page.js','audio.js','playback.js'].map(file => readFile(new URL(`../extension/${file}`, import.meta.url), 'utf8')));
 function fixture(t, { playback = true, sinkSupport = true } = {}) {
   const dom = new JSDOM('<body></body>', { url: 'https://x.com/home', runScripts: 'outside-only' });
   t.after(() => dom.window.close()); const { window } = dom, { document } = window;
@@ -24,7 +24,7 @@ function fixture(t, { playback = true, sinkSupport = true } = {}) {
   document.addEventListener = (type, callback, options) => { const list = handlers.get(type) || []; list.push(callback); handlers.set(type, list); add(type, callback, options); };
   const nativeMuted = Object.getOwnPropertyDescriptor(window.HTMLMediaElement.prototype,'muted');
   const nativePlay = window.HTMLMediaElement.prototype.play;
-  sources.slice(0, playback ? 4 : 3).forEach(source => window.eval(source));
+  sources.slice(0, playback ? 3 : 2).forEach(source => window.eval(source));
   const player = document.createElement('div'); player.dataset.testid = 'videoComponent';
   const video = document.createElement('video'); player.append(video);
   player.insertAdjacentHTML('beforeend', '<button class="play">Play</button><div role="slider" class="seek"></div><div class="volume"><button class="mute">Unmute</button><div role="slider"></div></div><div data-xvs-owned><button class="download">Download</button></div>');
@@ -79,6 +79,23 @@ test('sound authorization is scoped to one player and lost on source replacement
   f.trusted(f.player.querySelector('.mute')); f.video.muted=false; assert.equal(f.video.muted,false);
   const other=f.document.createElement('video'); other.muted=false; assert.equal(other.muted,true);
   f.video.src='new-source.mp4'; assert.equal(f.video.muted,true);
+});
+
+test('vertical-viewer unmute authorizes only the video in the same tweet cell', async t => {
+  const f = fixture(t);
+  const scroller = f.document.createElement('div'); scroller.dataset.testid = 'vss-scroll-view';
+  const cell = f.document.createElement('div'); cell.dataset.testid = 'cellInnerDiv-tweet-123';
+  cell.append(f.player);
+  cell.insertAdjacentHTML('beforeend', '<button class="sound"><svg data-testid="immersive-tweet-unmute-icon-123"></svg></button>');
+  scroller.append(cell); f.document.body.append(scroller);
+  f.trusted(f.player.querySelector('.play')); await f.video.play();
+  const other = f.document.createElement('video'); scroller.append(other);
+  const sound = cell.querySelector('.sound');
+  sound.click(); f.video.muted = false; assert.equal(f.video.muted, true);
+  f.trusted(sound.querySelector('svg')); f.video.muted = false;
+  assert.equal(f.video.muted, false);
+  other.muted = false; assert.equal(other.muted, true);
+  f.video.pause(); assert.equal(f.video.muted, true);
 });
 
 test('explicitly audible Play is allowed with Start muted off; audio-only background play is blocked', async t => {

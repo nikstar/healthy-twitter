@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
-const settingsSource = await readFile(new URL('../extension/settings.js', import.meta.url), 'utf8');
-const bridgeSource = await readFile(new URL('../extension/settings-bridge.js', import.meta.url), 'utf8');
+const bridgeSource = await readFile(new URL('../extension/settings-page.js', import.meta.url), 'utf8');
 const source = await readFile(new URL('../extension/playback.js', import.meta.url), 'utf8');
 const markup = id => `<div data-testid="videoComponent" id="${id}"><video src="${id}.mp4" autoplay loop></video>
   <button class="play" aria-label="Reproducir">Play</button>
@@ -51,7 +50,7 @@ function fixture(t, html = markup('a') + markup('b')) {
     handlers.get(type).push(handler);
     originalAdd(type, handler, options);
   };
-  window.eval(settingsSource); window.eval(bridgeSource);
+  window.eval(bridgeSource);
   window.eval(source);
   const trusted = (target, type = 'click', extra = {}) => {
     for (const handler of handlers.get(type) || []) handler({ target, isTrusted: true, button: 0, repeat: false, ...extra });
@@ -117,6 +116,68 @@ test('does not grant autoplay from synthetic clicks, mute, downloads, or another
   f.trusted(f.play('a'));
   f.advance(1500);
   await assert.rejects(f.video('a').play(), { name: 'NotAllowedError' });
+});
+
+test('a redundant native Pause during Play rendering preserves only the pending gesture', async t => {
+  const f = fixture(t), video = f.video('a');
+  f.trusted(f.play('a'));
+  video.pause();
+  await video.play();
+  assert.equal(video.paused, false);
+  video.pause();
+  await assert.rejects(video.play(), { name: 'NotAllowedError' });
+  f.trusted(f.play('a'));
+  video.pause(); f.advance(1500);
+  await assert.rejects(video.play(), { name: 'NotAllowedError' }, 'a render cannot extend the gesture window');
+});
+
+test('mobile preview Play authorizes its newly mounted player, not a neighboring clip', async t => {
+  const f = fixture(t, `<div data-testid="videoPlayer" id="shell"><div data-testid="previewInterstitial">
+    <button data-testid="playButton">Play this video</button></div></div>${markup('b')}`);
+  f.trusted(f.document.querySelector('[data-testid="playButton"]'));
+  f.document.querySelector('#shell').innerHTML = markup('a');
+  await f.settle();
+  f.video('a').pause();
+  await f.video('a').play();
+  assert.equal(f.video('a').paused, false);
+  await assert.rejects(f.video('b').play(), { name: 'NotAllowedError' });
+  f.end(f.video('a'));
+  f.document.querySelector('#shell').innerHTML = markup('next');
+  await f.settle();
+  await assert.rejects(f.video('next').play(), { name: 'NotAllowedError' }, 'the preview gesture is consumed once');
+});
+
+test('finishing one clip cannot authorize a next player or reused media element', async t => {
+  const f = fixture(t);
+  f.trusted(f.play('a')); await f.video('a').play(); f.end(f.video('a'));
+  await assert.rejects(f.video('b').play(), { name: 'NotAllowedError' });
+  f.video('a').src = 'next-clip.mp4';
+  await f.settle();
+  await assert.rejects(f.video('a').play(), { name: 'NotAllowedError' });
+  f.trusted(f.play('b')); await f.video('b').play();
+  assert.equal(f.video('b').paused, false, 'manually choosing the next clip still works');
+});
+
+test('vertical-viewer Play and seeking target one cell and ignore sibling controls', async t => {
+  const cell = id => `<div data-testid="cellInnerDiv-tweet-${id}">${markup(id)}
+    <button class="immersive-play"><svg data-testid="immersive-tweet-play-button-${id}"></svg></button>
+    <button class="immersive-mute"><svg data-testid="immersive-tweet-unmute-icon-${id}"></svg></button>
+    <div role="slider" class="scrubber"></div></div>`;
+  const f = fixture(t, `<div data-testid="vss-scroll-view">${cell('a')}${cell('b')}</div>`);
+  const a = f.document.querySelector('[data-testid="cellInnerDiv-tweet-a"]');
+  f.trusted(a.querySelector('.immersive-mute'));
+  await assert.rejects(f.video('a').play(), { name: 'NotAllowedError' });
+  f.trusted(a.querySelector('.immersive-play svg'));
+  await f.video('a').play();
+  await assert.rejects(f.video('b').play(), { name: 'NotAllowedError' });
+  f.data(f.video('a')).time = 9.9;
+  f.trusted(a.querySelector('.scrubber'));
+  f.video('a').currentTime = 0;
+  assert.equal(f.video('a').currentTime, 0);
+  f.video('a').pause();
+  a.append(f.document.querySelector('#b'));
+  f.trusted(a.querySelector('.immersive-play'));
+  await assert.rejects(f.video('a').play(), { name: 'NotAllowedError' }, 'ambiguous cells cannot authorize a player');
 });
 
 test('starts, resumes, and replays muted while preserving an unmute during playback', async t => {

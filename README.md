@@ -26,10 +26,13 @@ Controls appear only when X provides the matching native action and inverse oper
 - Videos and GIFs start only when you press Play or click their playback surface.
 - Every start, resume, and replay begins muted. You can unmute normally while watching; repeated player updates preserve that choice until playback is paused or finishes.
 - Both HTML looping and X's JavaScript-based GIF/video restarts are blocked. Press Play again to replay.
+- **Disable auto-advance:** the full-screen vertical video viewer stays on the current clip when it finishes. You can still swipe to another video; with autoplay disabled, press Play to start it. This is independent of looping and autoplay.
 - Paused or buffering frames and preview thumbnails are greyscale and dimmed. Actual playback restores their normal color; player controls retain their contrast.
 - Manual pause, keyboard Play, and scrubbing remain available. Mute, download, and other controls do not grant permission for autoplay. Newly loaded timeline players are covered automatically.
 
 These protections are on by default throughout X/Twitter. The separate background-audio guard also covers audio-only elements. Playback runs at document start so X cannot start a video before the guard is installed.
+
+X rolls out the vertical viewer separately from the normal player. Chrome mobile emulation was used to reproduce and test its automatic next-video behavior, with the viewer's rollout flags enabled temporarily in a diagnostic page. This is still a Chrome extension; a Safari/iPhone package and real-device acceptance check remain future work. See the [viewer maintenance notes](docs/MAINTENANCE.md#12-vertical-video-viewer-170).
 
 ## Background audio and headphones
 
