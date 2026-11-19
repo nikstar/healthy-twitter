@@ -140,6 +140,10 @@ test('worker validates sender, resolves the clicked player, and never overwrites
   const missing = await new Promise(resolve => listener({ type: 'download-player', playerToken: 'missing' }, contentSender, resolve));
   assert.match(missing.error, /No MP4/);
   assert.equal(calls.length, 1);
+  delete chrome.downloads;
+  const file = await new Promise(resolve => listener({ type: 'download-player', playerToken: 'player-456' }, contentSender, resolve));
+  assert.equal(file.fileURL, mp4('720x1280'));
+  assert.equal(file.filename, 'clicked_456_1_720x1280.mp4');
 });
 
 test('manifest limits automatic integration to X/Twitter and packaged scripts', async () => {

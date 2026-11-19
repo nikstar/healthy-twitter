@@ -355,6 +355,17 @@ Use a 390 × 844 Chrome touch viewport and the public sample post in the spec. D
 2. Guard preview: install `settings-page.js` and `viewer.js` into that diagnostic page. Replay the same clip. At completion, offset remained 0 and the current post stayed selected; the adjacent video remained paused.
 3. Playback preview: apply the new playback guard and use the viewer's actual Play button. It starts muted. At completion the viewer still stays put. A manual forward swipe reaches offset 844, while the next clip stays paused; its own Play button starts it muted. Swiping backward also remains available.
 4. Automated coverage: `test/viewer.test.js` checks exact flag scope, preserved records/receiver, opt-out behavior, and provider remounts. Playback/audio tests cover sibling control targeting, consumed preview intent, redundant Pause, and rejected automatic next-player/source starts. `test/settings-page.test.js` and the manifest test prevent the missing-MAIN-settings regression.
-5. Installed acceptance: reload the unpacked extension once, refresh X, check the MAIN settings object and popup switches, then repeat the viewer checks where X enables that viewer. The preceding live checks used temporary page previews, not a reloaded 1.7.0 package. Real Safari/iPhone installation and device acceptance are still pending a separate port.
+5. Installed acceptance: reload the unpacked extension once, refresh X, check the MAIN settings object and popup switches, then repeat the viewer checks where X enables that viewer. The preceding live checks used temporary page previews, not a reloaded 1.7.0 package. For iPhone packaging and sign-in requirements, see section 13.
 
 If X renames/removes the flag or changes the provider, rediscover the viewer's completion subscriber before repairing the hook. Do not replace it with generic scroll suppression or an unverified navigation interceptor. Native Play gating still prevents unsolicited video starts if the viewer-policy hook no longer matches, but that alone does not guarantee the page will stay on the same post.
+
+
+## 13. iPhone Safari
+
+The Xcode project in `ios/Healthy Twitter` builds the container app and the embedded Safari Web Extension. Its resource references point to `extension/`. Update the shared scripts to repair X integration in both browsers. When adding a new resource, include it in the extension target’s **Copy Bundle Resources** phase and check the built `.appex`. Keep the app and extension marketing versions in step with the manifest. Configure the Apple team locally.
+
+The extension runs in Safari tabs that have site access. The containing app opens Safari’s extension settings on iOS 26.2+ and displays the manual Settings path on older versions. The container’s setup screen and the Safari popup serve different purposes. Feature settings and the daily ledger live in Safari extension storage.
+
+Safari handles MP4 saving in its link menu. The background worker validates the sender, clicked player and CDN file before returning the link. No extra CDN host permission or native downloader is needed. On engines without the silent Web Audio sink, the existing guard rejects new realtime audio contexts while background audio prevention is on.
+
+For a release check, enable the extension and allow x.com in Settings, refresh an X tab, watch the timer advance, and open Healthy Twitter from the page menu. Check the **Disable auto-advance** switch. In a signed-in tab with the vertical viewer available, play the sample to completion, swipe to the next post, and play it manually. Repeat after turning auto-advance off and **reopening the viewer**, then restore the switch. X can choose a different viewer for guests or change a rollout independently of the extension.

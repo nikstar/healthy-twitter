@@ -7,6 +7,8 @@ const activity = installActivity(chrome);
 async function startDownload(video) {
   const url = validateVideoURL(video.url);
   if (!url) throw new Error('This is not a supported X video URL.');
+  // iPhone Safari saves a link through its native touch-and-hold menu.
+  if (!chrome.downloads?.download) return { fileURL: url, filename: videoFilename(video) };
   const id = await chrome.downloads.download({
     url, filename: videoFilename(video), conflictAction: 'uniquify', saveAs: false,
   });
@@ -38,6 +40,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // The worker resolves that specific player from the sender's tab each time.
   else if (fromContent && message?.type === 'download-player') operation = downloadPlayer(message, sender);
   else return;
-  operation.then(sendResponse, error => sendResponse({ error: error.message || 'Chrome could not start the download. Please try again.' }));
+  operation.then(sendResponse, error => sendResponse({ error: error.message || 'The request failed. Please try again.' }));
   return true;
 });

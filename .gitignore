@@ -5,3 +5,6 @@ artifacts/
 .env.*
 *.mp4
 *.webm
+
+xcuserdata/
+DerivedData/

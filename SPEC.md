@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.7.0**, documented **2026-11-19**.
+Baseline: version **1.8.0**, documented **2026-11-19**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
@@ -8,11 +8,11 @@ This document describes the behavior to preserve when X changes. DOM selectors, 
 
 Healthy Twitter makes media playback deliberate, makes feed curation accessible beside a post's author, and saves original video files without an external downloader service.
 
-- Chrome Manifest V3 extension, currently declaring Chrome 111 or later.
+- One Manifest V3 extension supports Chrome 111+ and iPhone Safari on iOS 18+. Safari 18 added the manifest content-script world selection used by the playback and viewer guards.
 - Automatic integration is limited to HTTPS `x.com`, `twitter.com`, and their subdomains, in the top frame.
 - All features are enabled by default and individually configurable in the toolbar settings popup. Preferences and the current daily time total are stored locally; there is no cloud service or telemetry. Playback and shortcut requirements below describe their enabled behavior.
 - Existing X controls, navigation, keyboard interaction, captions, volume, seeking, picture-in-picture, and fullscreen should remain usable.
-- The installable artifact is the `extension/` directory. No build step or runtime dependency installation is required.
+- Chrome loads the `extension/` directory. On iPhone, a signed container app embeds a Safari Web Extension with the same manifest, scripts, styles and popup. Safari requires its extension switch and per-site access before scripts can run.
 
 ## 2. Deliberate playback
 
@@ -159,7 +159,9 @@ Version 1.4.0 had a mounted-media list, quality picker, refresh, preview metadat
 
 ### DL-05 — Saving and status
 
-Use Chrome Downloads with `saveAs: false` and `conflictAction: 'uniquify'`. Respect Chrome's configured destination and never overwrite an existing file.
+On iPhone, the download action presents the validated best-quality URL as a persistent **Original MP4** link. The user can touch and hold it and select **Download Linked File**, or dismiss the link. On touch layouts without the desktop volume row, a player with a mounted video can show the arrow as an overlay.
+
+In Chrome, use the Downloads API with `saveAs: false` and `conflictAction: 'uniquify'`. Respect Chrome's configured destination and never overwrite an existing file.
 
 Filename pattern:
 
@@ -263,7 +265,7 @@ On 2026-11-07, real X pages were used to inspect and visually verify player cont
 
 Version 1.5.0’s settings popup, persistence, timer layout, and Following/manual-tab behavior were also checked in a local Chrome preview. Installed-extension checks are separate from those synthetic previews.
 
-On 2026-11-19, Chrome with a 390 × 844 touch viewport reproduced the immersive viewer advancing one screen (844px) after the sample clip ended and starting the next clip. The viewer rollout flags were off in this session, so they were temporarily enabled in the diagnostic page; production code never enables them. A temporary preview of the new guard kept the completed clip selected at scroll offset zero, with its neighbor paused. Safari identity spoofing alone is not Safari execution. Porting/package installation and acceptance on an actual iPhone remain unverified.
+On 2026-11-19, Chrome with a 390 × 844 touch viewport reproduced the immersive viewer advancing one screen (844px) after the sample clip ended and starting the next clip. The viewer rollout flags were off in this session, so they were temporarily enabled in the diagnostic page; production code never enables them. A temporary preview of the new guard kept the completed clip selected at scroll offset zero, with its neighbor paused. Safari identity spoofing alone is not Safari execution. Version 1.8.0 packages this guard in a Safari Web Extension. The signed build was installed on an iPhone 17. Safari in iPhone Simulator displayed the live timer and settings on the public sample post. X presented a guest app prompt there. A separate iOS WebKit fixture loaded the extension manifest and verified that the main-world guard suppressed the automatic-next flag, preserved another flag, and respected opt-out. Its video started paused, muted and without looping. The signed-in end-of-clip and manual-swipe checks are still pending on the phone.
 
 In 1.6.0 browser diagnostics on X found paused, unmuted, initialized video elements and no live realtime AudioContexts at the inspected moment. This suggests an early-media-initialization gap but does not prove the cause of Bluetooth handoff. A real Chrome fixture verified `readyState = 0` before Play, muted manual playback, rejected background unmute/audio requests, and `sinkId.type = "none"`. On 2026-11-07, after reloading 1.6.0, the user confirmed that AirPods stayed with the phone during the requested open-X/muted-Play check. This is a successful device-level check on that setup, not a guarantee for every OS/browser/device combination.
 

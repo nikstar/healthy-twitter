@@ -1,13 +1,13 @@
 # Healthy Twitter
 
-A small Chrome extension that makes X / Twitter calmer: Following by default, a daily time counter, deliberate playback, post shortcuts with Undo, and video/GIF downloads. It has no runtime dependencies.
+Healthy Twitter adds deliberate video playback, a daily time counter, feed shortcuts with Undo, and original MP4 downloads to X. It runs in Chrome and in Safari on iPhone.
 
 See the [feature specification](SPEC.md) for the behavior to preserve and the [maintenance guide](docs/MAINTENANCE.md) for X integration points, repair recipes, and verification steps.
 
 ## Your time and settings
 
 - **Following by default:** Home opens on Following. You can switch to For You; the extension chooses Following again the next time you enter Home.
-- **Daily time counter:** a prominent card shows today’s time on Twitter. Only the selected Twitter tab in a focused Chrome window counts. Other tabs and unfocused windows do not add time; multiple Twitter tabs share one total. The counter resets at local midnight and survives browser restarts.
+- **Daily time counter:** a prominent card shows today’s time on Twitter. Only the selected Twitter tab in a focused browser window counts. Other tabs and unfocused windows do not add time; multiple Twitter tabs share one total. The counter resets at local midnight and survives browser restarts.
 - **Settings popup:** click the green Twitter bird to configure every feature. Changes save automatically on this device and apply to open Twitter pages. Turning the counter off also stops time collection.
 
 All features start enabled. The counter keeps only the current day’s total, with no URL history or cloud sync. It checkpoints about every five seconds, so a crash can lose the latest few seconds. Long suspension/sleep gaps are excluded.
@@ -32,7 +32,7 @@ Controls appear only when X provides the matching native action and inverse oper
 
 These protections are on by default throughout X/Twitter. The separate background-audio guard also covers audio-only elements. Playback runs at document start so X cannot start a video before the guard is installed.
 
-X rolls out the vertical viewer separately from the normal player. Chrome mobile emulation was used to reproduce and test its automatic next-video behavior, with the viewer's rollout flags enabled temporarily in a diagnostic page. This is still a Chrome extension; a Safari/iPhone package and real-device acceptance check remain future work. See the [viewer maintenance notes](docs/MAINTENANCE.md#12-vertical-video-viewer-170).
+X rolls out the vertical viewer separately from the normal player. Chrome mobile emulation was used to reproduce and test its automatic next-video behavior, with the viewer's rollout flags enabled temporarily in a diagnostic page. The iPhone app packages the same viewer guard for Safari. See the [viewer maintenance notes](docs/MAINTENANCE.md#12-vertical-video-viewer-170).
 
 ## Background audio and headphones
 
@@ -49,9 +49,19 @@ After updating, reload the extension and refresh existing X tabs. Already-create
 
 GIFs have a compact download button beside X's **GIF** badge and a **Download GIF** right-click item. X serves these animations as MP4s, so downloads preserve that original MP4 without conversion or quality loss.
 
-The player and menu shortcuts save the highest available MP4 quality. Files use Chrome's configured Downloads folder; existing files are never overwritten.
+Both shortcuts select the highest available MP4 quality. Chrome saves it to the configured Downloads folder. On iPhone, touch and hold **Original MP4** and choose **Download Linked File** to save it through Safari.
 
-## Install locally
+## Install on iPhone
+
+1. Install the Healthy Twitter development build from Xcode. If it is already on your phone, go straight to step 2. For a fresh build, open [the Xcode project](ios/Healthy%20Twitter/Healthy%20Twitter.xcodeproj), select your signing team for both targets, choose the **Healthy Twitter** app scheme and your paired iPhone, and click **Run**. The deployment target is iOS 18.0. The project was built with Xcode 27.1.
+2. On iPhone, open **Settings → Apps → Safari → Extensions → Healthy Twitter**. Turn on **Allow Extension**, then set **x.com** to **Allow**. Also allow **twitter.com** if you browse there.
+3. Refresh any open X tabs. Open Safari’s page menu and select **Healthy Twitter** to configure its features.
+
+To test auto-advance, open the [sample post](https://x.com/TTrending48/status/2118711616732598471) in your signed-in Safari tab. Tap into X’s vertical viewer, press Play, and let the clip finish. With the default settings, the post stays selected and silent. Swipe up to the next clip and press Play to start it. If X shows an app promotion in a signed-out tab, use the Safari tab where you normally see the viewer.
+
+For updates, run the same app target on your iPhone again and refresh X.
+
+## Install in Chrome
 
 1. Open `chrome://extensions` in Chrome.
 2. Enable **Developer mode**.
@@ -72,7 +82,7 @@ X sometimes mounts a player only when it becomes visible or starts playing. If n
 
 ## Development
 
-Use Chrome 111 or newer and Node.js 24 or newer for development. Run `npm ci` for test dependencies, then `npm test` and `npm run check`. Tests use jsdom to exercise autoplay and loop prevention, manual playback and seeking, player/source replacement, control insertion, context-menu targeting, keyboard navigation, and error handling. There is no build step; the `extension` directory is the complete distributable, and installing the extension does not require Node.js or npm.
+Use Chrome 111 or newer and Node.js 24 or newer for development. Run `npm ci` for test dependencies, then `npm test` and `npm run check`. Tests use jsdom to exercise autoplay and loop prevention, manual playback and seeking, player/source replacement, control insertion, context-menu targeting, keyboard navigation, and error handling. Chrome loads the `extension` directory directly. The Safari target embeds those same files into a signed app extension. Neither browser needs Node.js at runtime.
 
 GitHub Actions runs the tests and syntax checks on pushes and pull requests. Local screenshots, downloaded test media, environment files, and dependencies are excluded from Git. DOM fixtures are synthetic; the public example-post references in tests are not bundled media.
 

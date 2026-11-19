@@ -76,6 +76,36 @@ test('places one button beside captions, survives remounts, and never toggles pl
   assert.equal(f.document.querySelectorAll('.xvs-download-button').length, 1);
 });
 
+test('Safari offers the original file in a dismissible link after a deliberate download', async t => {
+  const f = fixture(t);
+  const url = 'https://video.twimg.com/example.mp4';
+  f.window.chrome.runtime.sendMessage = async () => ({ fileURL: url, filename: 'post.mp4' });
+  f.trusted(f.document.querySelector('.xvs-download-button'), 'click');
+  await f.settle();
+  const toast = f.document.querySelector('.xvs-save-link');
+  assert.equal(toast.querySelector('a').href, url);
+  assert.equal(toast.querySelector('a').download, 'post.mp4');
+  toast.querySelector('button').click();
+  assert.equal(toast.isConnected, false);
+});
+
+test('touch players without volume controls get a single movable download button', async t => {
+  const f = fixture(t, '<div data-testid="videoComponent" id="mobile"></div>');
+  f.window.matchMedia = query => ({ matches: query === '(pointer: coarse)' });
+  const player = f.document.querySelector('#mobile');
+  player.append(f.document.createElement('video'));
+  await f.settle();
+  const button = player.querySelector('.xvs-touch-fallback .xvs-download-button');
+  assert.ok(button);
+  const shell = f.document.createElement('div');
+  shell.innerHTML = playerHTML('controls');
+  player.append(shell.querySelector('.controls'));
+  await f.settle();
+  assert.equal(player.querySelector('.right .xvs-download-button'), button);
+  assert.equal(player.querySelectorAll('.xvs-download-button').length, 1);
+  assert.equal(player.querySelector('.xvs-touch-fallback'), null);
+});
+
 test('extends only a video context menu and downloads the right-clicked player', async t => {
   const f = fixture(t, playerHTML('a') + playerHTML('b'));
   const playerB = f.document.querySelector('#b');

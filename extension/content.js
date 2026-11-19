@@ -44,7 +44,7 @@
     return svg;
   }
 
-  function notify(text, error = false) {
+  function notify(text, error = false, file = null) {
     let toast = document.querySelector('.xvs-toast');
     if (!toast) {
       toast = document.createElement('div');
@@ -59,7 +59,22 @@
     if (toast.parentElement !== root) root.append(toast);
     toast.textContent = text;
     toast.classList.toggle('xvs-error', error);
+    toast.classList.toggle('xvs-save-link', !!file);
     clearTimeout(toastTimer);
+    if (file) {
+      const link = document.createElement('a');
+      link.href = file.fileURL;
+      link.download = file.filename;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Original MP4';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = 'Dismiss';
+      close.addEventListener('click', () => toast.remove());
+      toast.append(document.createElement('br'), link, close);
+      return;
+    }
     toastTimer = setTimeout(() => toast.remove(), error ? 7000 : 4000);
   }
 
@@ -83,9 +98,13 @@
     notify('Preparing video…');
     try {
       const response = await chrome.runtime.sendMessage({ type: 'download-player', playerToken: state.token });
+      if (response?.fileURL) {
+        notify('Touch and hold the link, then choose Download Linked File.', false, response);
+        return;
+      }
       if (response?.error || !Number.isInteger(response?.id)) throw new Error(response?.error || 'Download could not start.');
       const quality = response.width && response.height ? ` (${response.width} × ${response.height})` : '';
-      notify(`Download started${quality}. Check Chrome’s downloads for progress.`);
+      notify(`Download started${quality}.`);
     } catch (error) {
       const text = /context invalidated|receiving end/i.test(error.message)
         ? 'The extension was updated. Reload this X tab to reconnect.'
@@ -132,17 +151,19 @@
     if (existing) {
       existing.setAttribute('aria-label', actionLabel(player));
       existing.title = actionTitle(player);
-      if (controls && existing.parentElement.classList.contains('xvs-gif-fallback')) {
-        existing.parentElement.classList.remove('xvs-gif-fallback');
+      if (controls && existing.parentElement.matches('.xvs-gif-fallback, .xvs-touch-fallback')) {
+        existing.parentElement.classList.remove('xvs-gif-fallback', 'xvs-touch-fallback');
         controls.row.insertBefore(existing.parentElement, controls.slot);
       }
       return;
     }
-    if (!controls && !gif) return;
+    const touchFallback = !controls && !gif && window.matchMedia?.('(pointer: coarse)').matches && player.querySelector('video');
+    if (!controls && !gif && !touchFallback) return;
     const holder = document.createElement('div');
     holder.className = 'xvs-control-slot';
     holder.classList.toggle('xvs-gif-control', gif);
     holder.classList.toggle('xvs-gif-fallback', gif && !controls);
+    holder.classList.toggle('xvs-touch-fallback', !!touchFallback);
     holder.dataset.xvsOwned = '';
     const button = document.createElement('button');
     button.type = 'button';
