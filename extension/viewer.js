@@ -1,6 +1,5 @@
-// X's immersive viewer subscribes to tracksFinished and advances its scroller
-// when this feature flag is true. Disable that one policy, not scrolling or
-// ended events: manual swipes, navigation, and the player's end UI stay native.
+// X controls automatic advancement through a feature flag. Manual advancement
+// uses a native snap scroller, whose overflow is controlled by playback.css.
 (() => {
   const key = Symbol.for('healthy-twitter.viewer');
   if (window[key]) return;
@@ -12,6 +11,8 @@
 
   function scan() {
     scheduled = false;
+    // Also runs when the root first appears after document_start.
+    document.documentElement?.toggleAttribute('data-ht-allow-viewer-swipes', config?.value.preventViewerSwipes === false);
     const root = document.querySelector('main');
     if (!root) return;
     try {

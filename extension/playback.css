@@ -6,3 +6,10 @@ html:not([data-ht-grey="false"]) [data-testid="videoComponent"]:not([data-ht-sta
 html:not([data-ht-grey="false"]) [data-testid="videoComponent"]:not([data-ht-state="playing"]) [style*="background-image"] {
   filter: grayscale(1) brightness(.65) !important;
 }
+
+/* Keep the viewer at its current offset, including when opened on a later clip.
+   X can still position it on entry. Swipes and wheels cannot page through it. */
+html:not([data-ht-allow-viewer-swipes]) [data-testid="vss-scroll-view"] {
+  overflow-y: hidden !important;
+  overscroll-behavior-y: contain !important;
+}

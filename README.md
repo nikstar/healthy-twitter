@@ -26,7 +26,8 @@ Controls appear only when X provides the matching native action and inverse oper
 - Videos and GIFs start only when you press Play or click their playback surface.
 - Every start, resume, and replay begins muted. You can unmute normally while watching; repeated player updates preserve that choice until playback is paused or finishes.
 - Both HTML looping and X's JavaScript-based GIF/video restarts are blocked. Press Play again to replay.
-- **Disable auto-advance:** the full-screen vertical video viewer stays on the current clip when it finishes. You can still swipe to another video; with autoplay disabled, press Play to start it. This is independent of looping and autoplay.
+- **Disable auto-advance** keeps the full-screen vertical viewer on the current clip when playback ends.
+- **Block swiping between videos** keeps an upward or downward swipe, mouse wheel, or trackpad scroll on that same clip. Close the viewer to choose another video. You can turn this switch off independently of auto-advance.
 - Paused or buffering frames and preview thumbnails are greyscale and dimmed. Actual playback restores their normal color; player controls retain their contrast.
 - Manual pause, keyboard Play, and scrubbing remain available. Mute, download, and other controls do not grant permission for autoplay. Newly loaded timeline players are covered automatically.
 
@@ -57,7 +58,7 @@ Both shortcuts select the highest available MP4 quality. Chrome saves it to the 
 2. On iPhone, open **Settings → Apps → Safari → Extensions → Healthy Twitter**. Turn on **Allow Extension**, then set **x.com** to **Allow**. Also allow **twitter.com** if you browse there.
 3. Refresh any open X tabs. Open Safari’s page menu and select **Healthy Twitter** to configure its features.
 
-To test auto-advance, open the [sample post](https://x.com/TTrending48/status/2118711616732598471) in your signed-in Safari tab. Tap into X’s vertical viewer, press Play, and let the clip finish. With the default settings, the post stays selected and silent. Swipe up to the next clip and press Play to start it. If X shows an app promotion in a signed-out tab, use the Safari tab where you normally see the viewer.
+To test the viewer, open the [sample post](https://x.com/TTrending48/status/2118711616732598471) in your signed-in Safari tab. Tap into X’s vertical viewer, press Play, and let the clip finish. Swipe up and down during playback and after the clip ends. With the defaults, the same post stays selected. Close the viewer and scroll the timeline to choose another video. If X shows an app promotion in a signed-out tab, use the Safari tab where you normally see the viewer.
 
 For updates, run the same app target on your iPhone again and refresh X.
 

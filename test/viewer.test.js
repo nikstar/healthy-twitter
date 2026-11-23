@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 const sources = await Promise.all(['settings-page.js', 'viewer.js'].map(name => readFile(new URL(`../extension/${name}`, import.meta.url), 'utf8')));
+const css = await readFile(new URL('../extension/playback.css', import.meta.url), 'utf8');
 const flag = 'explore_relaunch_enable_auto_play';
 function fixture(t) {
   const dom = new JSDOM('<main></main>', { runScripts: 'outside-only' });
@@ -49,4 +50,27 @@ test('handles lazy providers and remounts without wrapping a provider twice', as
   f.main.append(f.window.document.createElement('div')); await f.settle();
   assert.equal(replacement.getFeatureSwitch({ name: flag }).value, false);
   assert.equal(replacement.getFeatureSwitch({ name: 'unrelated' }).value, true);
+});
+
+test('swipe blocking follows the viewer across remounts and is independent of auto-advance', async t => {
+  const f = fixture(t);
+  const { document } = f.window;
+  const style = document.createElement('style');
+  style.textContent = '.scroller { overflow-y: auto; }\n' + css;
+  document.head.append(style);
+  f.main.innerHTML = '<div class="scroller" data-testid="vss-scroll-view"></div><div class="scroller" id="feed"></div>';
+  const viewer = () => f.main.firstElementChild;
+  const overflow = element => f.window.getComputedStyle(element).overflowY;
+  assert.equal(overflow(viewer()), 'hidden');
+  assert.equal(overflow(document.querySelector('#feed')), 'auto');
+  f.settings({ preventViewerSwipes: false });
+  await f.settle();
+  assert.equal(overflow(viewer()), 'auto');
+  assert.equal(f.switches.isTrue(flag), false);
+  viewer().replaceWith(viewer().cloneNode());
+  assert.equal(overflow(viewer()), 'auto');
+  f.settings({ preventAutoAdvance: false });
+  await f.settle();
+  assert.equal(overflow(viewer()), 'hidden');
+  assert.equal(f.switches.isTrue(flag), true);
 });

@@ -1,6 +1,6 @@
 # Healthy Twitter feature specification
 
-Baseline: version **1.8.0**, documented **2026-11-19**.
+Baseline version **1.9.0**, documented **2026-11-23**.
 
 This document describes the behavior to preserve when X changes. DOM selectors, React structures, and native action signatures are replaceable implementation details; their current forms are documented in [the maintenance guide](docs/MAINTENANCE.md). A passing fixture test alone does not establish compatibility with the current website.
 
@@ -50,11 +50,17 @@ The baseline filter is `grayscale(1) brightness(.65)`. This is applied to media 
 
 ### PLY-05 — No automatic next video
 
-With `preventAutoAdvance` enabled, finishing a clip in X's full-screen vertical viewer must not scroll to or select the next recommended video. Keep the current clip and native completion/replay UI. Do not cancel global scroll, touch, or `ended` events. Manual swiping and next/previous navigation remain X's own behavior.
+With `preventAutoAdvance` enabled, finishing a clip in X's full-screen vertical viewer must not scroll to or select the next recommended video. Keep the current clip and native completion/replay UI. Do not cancel global scroll, touch, or `ended` events. Manual swipe navigation is a separate preference (PLY-06).
 
 This is independent of PLY-01 and PLY-02: autoplay controls whether a selected video starts, loop prevention controls repeats, and auto-advance controls the viewer moving to another post. A manual swipe alone does not grant Play permission while autoplay prevention is on. The viewer's separate Play and Unmute controls must target only the video in that tweet cell.
 
 Turning this setting off restores X's native policy; it does not force auto-advance on if X has disabled it. This setting changes only local page behavior. Do not enable X rollout flags in the shipped extension or save account settings. The current implementation depends on X's viewer feature-switch contract and must be refreshed if that changes.
+
+### PLY-06 — Block swiping between videos
+
+With `preventViewerSwipes` enabled, a vertical touch swipe, mouse wheel or trackpad scroll in the immersive video viewer keeps the current clip selected in both directions. Apply the preference to an already-open viewer at its current position and to newly mounted viewers. Play, Replay, seeking, Close and scrolling elsewhere on X remain available.
+
+This preference defaults on for new and existing installations. Turning it off immediately restores manual swiping. It does not change the auto-advance or autoplay settings.
 
 ### AUDIO-01 — Prevent background audio/device activation
 
@@ -198,7 +204,7 @@ Clicking the icon opens a settings page in the popup, with today’s saved time 
 | Group | Preference keys | Behavior |
 | --- | --- | --- |
 | Your time | `defaultFollowing`, `showTimer` | Home default; visible daily counter and collection |
-| Playback | `preventBackgroundAudio`, `preventAutoplay`, `preventAutoAdvance`, `preventLoop`, `startMuted`, `greyPaused` | Early audio protection; deliberate start; no next-video scroll; no loops; muted starts; inactive styling |
+| Playback | `preventBackgroundAudio`, `preventAutoplay`, `preventAutoAdvance`, `preventViewerSwipes`, `preventLoop`, `startMuted`, `greyPaused` | Early audio protection; deliberate start; suppress automatic advance; block manual swipes; no loops; muted starts; inactive styling |
 | Post shortcuts | `showNotInterested`, `showLessAccount`, `showBlock` | Each author-row action independently |
 | Downloads | `playerDownload`, `menuDownload` | Player button and native right-click item independently |
 
@@ -229,7 +235,7 @@ The download worker validates the extension sender. The settings popup cannot su
 
 | Component | Role |
 | --- | --- |
-| `viewer.js` | Main world at document start; disables only the immersive viewer's automatic-next policy |
+| `viewer.js` | Main world at document start; controls the immersive viewer’s end-of-clip policy and the swipe preference used by `playback.css` |
 | `audio.js` | Main world at document start, before playback; early mute/preload/load guard and no-output Web Audio |
 | `playback.js`, `playback.css` | Main world at document start; native media guard, local X player synchronization, inactive styling |
 | `feed.js`, `feed.css` | Main world at document idle; author-row controls, native feed actions, Undo, local visibility |
@@ -251,7 +257,7 @@ Use narrowly scoped identities and traversal limits. Keep media collection bound
 | --- | --- | --- |
 | Background audio | `test/audio.test.js`, `test/browser/audio.html` | Cold-load mute/preload; no native load before Play; silent Web Audio; native sound controls; AirPods phone-to-Mac check |
 | Playback | `test/playback.test.js` | Paused load/scroll; muted start; unmute; pause/resume; end/replay; GIF; seeking; actual grey/color state |
-| Vertical viewer | `test/viewer.test.js`, playback/audio suites | End stays on current post; manual swipe still moves; next clip requires Play; native viewer sound controls |
+| Vertical viewer | `test/viewer.test.js`, playback/audio suites | End stays on current post; swipes keep the current offset; opting out restores swiping; playback and sound controls work |
 | Feed | `test/feed.test.js` | Three For You buttons; Block elsewhere; matching author; layout and tooltips; approved account/feedback action and Undo |
 | Download UI | `test/content.test.js` | Player/CC placement; GIF badge; right-click target; menu dismissal; keyboard access |
 | Collector/worker | `test/extension.test.js` | Blob-backed player extraction; real MP4 save; correct media/filename; Chrome download status |

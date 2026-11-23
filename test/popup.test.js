@@ -22,10 +22,14 @@ test('settings popup loads all preferences and persists rapid independent change
   const f = await fixture(t);
   assert.equal(f.input('startMuted').checked, false);
   assert.equal(f.input('preventLoop').checked, true);
+  assert.equal(f.input('preventViewerSwipes').checked, true, 'existing installs default to blocked swipes');
   assert.equal(f.window.document.querySelector('#today-time').textContent, '0:01:02');
   f.toggle('preventLoop'); f.toggle('playerDownload'); await f.settle();
   assert.equal(f.stored.settings.preventLoop, false); assert.equal(f.stored.settings.playerDownload, false);
   assert.equal(f.stored.settings.startMuted, false);
+  f.toggle('preventViewerSwipes'); await f.settle();
+  assert.equal(f.stored.settings.preventViewerSwipes, false);
+  assert.equal(f.stored.settings.preventAutoAdvance, true);
   assert.match(f.window.document.querySelector('#status').textContent, /Saved/);
 });
 test('a failed preference save is visible and restores the previous switch value', async t => {
